@@ -448,7 +448,12 @@ def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 
+import os as _os
+
+# Run on startup (both direct and via gunicorn)
+init_db()
+_ensure_secret_key()
+
 if __name__ == '__main__':
-    init_db()
-    _ensure_secret_key()
-    app.run(debug=True)
+    port = int(_os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
