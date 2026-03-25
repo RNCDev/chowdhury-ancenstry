@@ -310,7 +310,6 @@ def relationship_delete(rel_id):
 @app.route('/api/tree')
 @login_required
 def api_tree():
-    root_id = request.args.get('root_id', type=int)
     db = get_db()
 
     people = {row['id']: dict(row) for row in db.execute("SELECT * FROM person").fetchall()}
@@ -320,7 +319,7 @@ def api_tree():
     if not people:
         return jsonify(None)
 
-    # Build adjacency: parent → children
+    # Build adjacency
     children_of = {}  # parent_id → [child_id, ...]
     spouses_of = {}   # person_id → [spouse_id, ...]
 
@@ -333,42 +332,23 @@ def api_tree():
             spouses_of.setdefault(p1, []).append(p2)
             spouses_of.setdefault(p2, []).append(p1)
 
-    # Find root: either specified, or person with no parents
+    # Find the topmost ancestor: walk up parent links from any person
     all_children = set()
     for kids in children_of.values():
         all_children.update(kids)
 
-    if root_id and root_id in people:
-        pass
-    else:
-        # Find people who are not children of anyone (roots)
-        roots = [pid for pid in people if pid not in all_children]
-        root_id = roots[0] if roots else next(iter(people))
-
-    # Determine who is a spouse of someone
-    all_spouses = set()
-    for pid, sids in spouses_of.items():
-        all_spouses.update(sids)
-        all_spouses.add(pid)
-
-    # Find root ancestors: people who have no parents
-    root_candidates = [pid for pid in people if pid not in all_children]
-
-    # Among root candidates, pick "primary" roots — prefer those who aren't
-    # solely a spouse of another root candidate (avoid duplicate trees)
-    # E.g., if Prodiptya and Sangeeta are both roots and spouses, only keep one
-    primary_roots = []
-    spouse_of_root = set()
-    for pid in root_candidates:
-        if pid not in spouse_of_root:
-            primary_roots.append(pid)
-            for sid in spouses_of.get(pid, []):
-                if sid in root_candidates:
-                    spouse_of_root.add(sid)
+    # Pick a parentless person; prefer one with children (i.e. not a lone spouse)
+    parentless = [pid for pid in people if pid not in all_children]
+    root_id = None
+    for pid in parentless:
+        if pid in children_of or any(pid in children_of for s in spouses_of.get(pid, [])):
+            root_id = pid
+            break
+    if root_id is None:
+        root_id = parentless[0] if parentless else next(iter(people))
 
     # Build tree recursively
-    built_as_node = set()
-    covered = set()  # people who appear anywhere in the tree (node or spouse)
+    built = set()
 
     def _person_info(pid):
         p = people[pid]
@@ -380,23 +360,22 @@ def api_tree():
         }
 
     def build_node(pid):
-        if pid in built_as_node or pid not in people:
+        if pid in built or pid not in people:
             return None
-        built_as_node.add(pid)
-        covered.add(pid)
+        built.add(pid)
         node = _person_info(pid)
         node['spouses'] = []
         node['children'] = []
 
-        # Collect all spouses (annotated, not as tree nodes themselves)
+        # Spouses shown as annotations
         spouse_ids = []
         for sid in spouses_of.get(pid, []):
             if sid in people:
                 node['spouses'].append(_person_info(sid))
                 spouse_ids.append(sid)
-                covered.add(sid)
+                built.add(sid)
 
-        # Collect children from this person and their spouses
+        # Children from this person and their spouses
         seen_children = set()
         for parent_id in [pid] + spouse_ids:
             for cid in children_of.get(parent_id, []):
@@ -407,25 +386,8 @@ def api_tree():
                         node['children'].append(child_node)
         return node
 
-    if root_id and root_id in people:
-        tree = build_node(root_id)
-        all_roots = [tree] if tree else []
-    else:
-        all_roots = []
-        for pid in primary_roots:
-            node = build_node(pid)
-            if node:
-                all_roots.append(node)
-        root_id = all_roots[0]['id'] if all_roots else None
-
-    # Catch anyone still not placed (truly isolated people)
-    for pid in people:
-        if pid not in covered:
-            node = build_node(pid)
-            if node:
-                all_roots.append(node)
-
-    return jsonify({'roots': all_roots, 'root_id': root_id})
+    tree = build_node(root_id)
+    return jsonify({'root': tree})
 
 
 # --- Tree page ---
@@ -434,9 +396,9 @@ def api_tree():
 @login_required
 def tree():
     db = get_db()
-    people = db.execute("SELECT id, first_name, last_name FROM person ORDER BY last_name, first_name").fetchall()
+    has_people = db.execute("SELECT 1 FROM person LIMIT 1").fetchone() is not None
     db.close()
-    return render_template('tree.html', people=people)
+    return render_template('tree.html', people=has_people)
 
 
 # --- Photo serving ---

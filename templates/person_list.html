@@ -3,14 +3,18 @@
 {% block title %}People — Chowdhury Family Tree{% endblock %}
 
 {% block content %}
-<h2>People</h2>
+<div class="page-header">
+    <h2 class="page-title">People</h2>
+    <form method="get" role="search" class="search-box">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="search" name="q" value="{{ search }}" placeholder="Search people…">
+    </form>
+</div>
 
-<form method="get" role="search" style="margin-bottom: 1rem;">
-    <input type="search" name="q" value="{{ search }}" placeholder="Search people...">
-</form>
-
+<div class="card">
 {% if people %}
-<figure>
 <table>
     <thead>
         <tr>
@@ -23,16 +27,30 @@
     <tbody>
         {% for p in people %}
         <tr>
-            <td><a href="{{ url_for('person_detail', person_id=p.id) }}">{{ p.first_name }} {% if p.middle_name %}{{ p.middle_name }} {% endif %}{{ p.last_name }}</a></td>
-            <td>{% if p.birth_name_first or p.birth_name_last %}{{ p.birth_name_first or p.first_name }} {{ p.birth_name_last or p.last_name }}{% endif %}</td>
-            <td>{{ p.date_of_birth or '' }}</td>
-            <td>{{ p.place_of_birth or '' }}</td>
+            <td class="td-name">
+                <a href="{{ url_for('person_detail', person_id=p.id) }}">
+                    {{ p.first_name }}{% if p.middle_name %} {{ p.middle_name }}{% endif %} {{ p.last_name }}
+                </a>
+            </td>
+            <td class="td-meta">
+                {% if p.birth_name_first or p.birth_name_last %}
+                    {{ p.birth_name_first or p.first_name }} {{ p.birth_name_last or p.last_name }}
+                {% endif %}
+            </td>
+            <td class="td-meta td-dob">{{ p.date_of_birth or '' }}</td>
+            <td class="td-meta">{{ p.place_of_birth or '' }}</td>
         </tr>
         {% endfor %}
     </tbody>
 </table>
-</figure>
 {% else %}
-<p>No people found. <a href="{{ url_for('person_new') }}">Add someone</a>.</p>
+<div class="empty-state">
+    {% if search %}
+        No results for "<strong>{{ search }}</strong>". <a href="{{ url_for('person_list') }}">Clear search</a>.
+    {% else %}
+        No people yet. <a href="{{ url_for('person_new') }}">Add someone</a>.
+    {% endif %}
+</div>
 {% endif %}
+</div>
 {% endblock %}

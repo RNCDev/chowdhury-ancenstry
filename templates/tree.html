@@ -4,44 +4,17 @@
 
 {% block head %}
 <style>
-    #tree-container {
-        width: 100%;
-        height: calc(100vh - 150px);
-        border: 1px solid var(--pico-muted-border-color);
-        border-radius: 8px;
-        overflow: hidden;
-        background: var(--pico-background-color);
-    }
-    .tree-controls {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-        margin-bottom: 1rem;
-    }
-    .tree-controls select {
-        margin-bottom: 0;
-        max-width: 300px;
-    }
+    main.container { max-width: none; padding: 0; margin: 0; }
 </style>
 {% endblock %}
 
 {% block content %}
-<h2>Family Tree</h2>
-
 {% if people %}
-<div class="tree-controls">
-    <label style="margin-bottom: 0;">Root person:</label>
-    <select id="root-select">
-        <option value="">Auto (earliest ancestor)</option>
-        {% for p in people %}
-        <option value="{{ p.id }}">{{ p.first_name }} {{ p.last_name }}</option>
-        {% endfor %}
-    </select>
-</div>
-
 <div id="tree-container"></div>
 {% else %}
-<p>No people in the database yet. <a href="{{ url_for('person_new') }}">Add someone</a> to get started.</p>
+<div class="empty-state" style="padding-top: 4rem;">
+    No people in the database yet. <a href="{{ url_for('person_new') }}">Add someone</a> to get started.
+</div>
 {% endif %}
 {% endblock %}
 

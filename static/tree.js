@@ -1,7 +1,6 @@
 // Family Tree D3.js Visualization
 (function () {
   const container = document.getElementById("tree-container");
-  const rootSelect = document.getElementById("root-select");
   if (!container) return;
 
   const width = container.clientWidth;
@@ -15,68 +14,84 @@
 
   const g = svg.append("g");
 
-  // Pan and zoom
+  // Pan and zoom (pan via drag, zoom only via buttons)
   const zoom = d3
     .zoom()
     .scaleExtent([0.2, 3])
+    .filter((event) => {
+      // Allow drag pan, block scroll/pinch zoom
+      return event.type === "mousedown" || event.type === "touchstart";
+    })
     .on("zoom", (event) => {
       g.attr("transform", event.transform);
     });
   svg.call(zoom);
 
+  let fitTransform = d3.zoomIdentity; // saved by renderTree for reset
+
+  // Zoom controls
+  const controls = document.createElement("div");
+  controls.className = "tree-zoom-controls";
+  controls.innerHTML = `
+    <button id="zoom-in" title="Zoom in">
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="6" x2="12" y2="18"/><line x1="6" y1="12" x2="18" y2="12"/></svg>
+    </button>
+    <button id="zoom-out" title="Zoom out">
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="6" y1="12" x2="18" y2="12"/></svg>
+    </button>
+    <button id="zoom-reset" title="Reset view">
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="12" cy="12" r="3"/></svg>
+    </button>
+  `;
+  container.style.position = "relative";
+  container.appendChild(controls);
+
+  document.getElementById("zoom-in").addEventListener("click", () => {
+    svg.transition().duration(250).call(zoom.scaleBy, 1.3);
+  });
+  document.getElementById("zoom-out").addEventListener("click", () => {
+    svg.transition().duration(250).call(zoom.scaleBy, 0.7);
+  });
+  document.getElementById("zoom-reset").addEventListener("click", () => {
+    svg.transition().duration(400).call(zoom.transform, fitTransform);
+  });
+
   const NODE_WIDTH = 160;
   const NODE_HEIGHT = 60;
   const SPOUSE_GAP = 10;
   const COUPLE_WIDTH = NODE_WIDTH * 2 + SPOUSE_GAP;
-  const TREE_GAP = 100; // gap between multiple root trees
+  const TREE_GAP = 100;
 
-  function loadTree(rootId) {
-    const url = rootId ? `/api/tree?root_id=${rootId}` : "/api/tree";
-    d3.json(url).then((data) => {
-      if (!data || !data.roots || data.roots.length === 0) {
+  function loadTree() {
+    d3.json("/api/tree").then((data) => {
+      if (!data || !data.root) {
         g.selectAll("*").remove();
         g.append("text")
           .attr("x", width / 2)
           .attr("y", height / 2)
           .attr("text-anchor", "middle")
-          .attr("fill", "var(--pico-color)")
+          .attr("fill", "#9ab5a6")
           .text("No family data yet. Add some people to get started!");
         return;
       }
 
-      renderAllRoots(data.roots);
+      renderTree(data.root);
     });
   }
 
-  function renderAllRoots(roots) {
+  function renderTree(rootData) {
     g.selectAll("*").remove();
 
-    // Layout each root tree and compute their widths, then place side by side
-    let currentOffsetX = 0;
+    const root = d3.hierarchy(rootData, (d) => d.children);
+    const treeLayout = d3.tree().nodeSize([COUPLE_WIDTH + 40, 120]);
+    treeLayout(root);
 
-    roots.forEach((rootData, index) => {
-      const root = d3.hierarchy(rootData, (d) => d.children);
-      const treeLayout = d3.tree().nodeSize([COUPLE_WIDTH + 40, 120]);
-      treeLayout(root);
+    const offsetX = width / 2 - root.x;
+    const offsetY = 80;
 
-      // Find bounds of this tree
-      let minX = Infinity, maxX = -Infinity;
-      root.descendants().forEach((d) => {
-        minX = Math.min(minX, d.x - COUPLE_WIDTH / 2);
-        maxX = Math.max(maxX, d.x + COUPLE_WIDTH / 2);
-      });
-      const treeWidth = maxX - minX;
+    renderSingleTree(root, offsetX, offsetY);
 
-      // Offset so this tree starts after the previous one
-      const offsetX = currentOffsetX - minX;
-      const offsetY = 80;
-
-      renderSingleTree(root, offsetX, offsetY);
-
-      currentOffsetX += treeWidth + TREE_GAP;
-    });
-
-    // Auto-fit: zoom to fit all content
+    // Auto-fit
     const bounds = g.node().getBBox();
     if (bounds.width === 0 || bounds.height === 0) return;
 
@@ -87,14 +102,15 @@
     const tx = width / 2 - (bounds.x + bounds.width / 2) * scale;
     const ty = height / 2 - (bounds.y + bounds.height / 2) * scale;
 
+    fitTransform = d3.zoomIdentity.translate(tx, ty).scale(scale);
     svg
       .transition()
       .duration(500)
-      .call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+      .call(zoom.transform, fitTransform);
   }
 
   function renderSingleTree(root, offsetX, offsetY) {
-    // Draw links (parent to child)
+    // Draw links
     root.links().forEach((link) => {
       const sx = link.source.x + offsetX;
       const sy = link.source.y + offsetY + NODE_HEIGHT / 2;
@@ -105,7 +121,7 @@
       g.append("path")
         .attr("class", "link")
         .attr("fill", "none")
-        .attr("stroke", "#999")
+        .attr("stroke", "rgba(92, 184, 120, 0.3)")
         .attr("stroke-width", 1.5)
         .attr("d", `M${sx},${sy} C${sx},${midY} ${tx},${midY} ${tx},${ty}`);
     });
@@ -159,7 +175,7 @@
             .attr("y1", sy)
             .attr("x2", sx - NODE_WIDTH / 2)
             .attr("y2", sy)
-            .attr("stroke", "#e74c3c")
+            .attr("stroke", "rgba(212, 168, 85, 0.5)")
             .attr("stroke-width", 2);
 
           const spouseG = g
@@ -198,13 +214,14 @@
     });
   }
 
-  // Initial load
-  loadTree(null);
+  // Disable browser-level pinch/scroll zoom on the tree container
+  container.addEventListener("wheel", (e) => { e.preventDefault(); }, { passive: false });
+  container.addEventListener("touchmove", (e) => {
+    if (e.touches.length > 1) e.preventDefault();
+  }, { passive: false });
+  container.addEventListener("gesturestart", (e) => { e.preventDefault(); }, { passive: false });
+  container.addEventListener("gesturechange", (e) => { e.preventDefault(); }, { passive: false });
 
-  // Root selector
-  if (rootSelect) {
-    rootSelect.addEventListener("change", () => {
-      loadTree(rootSelect.value || null);
-    });
-  }
+  // Load tree automatically
+  loadTree();
 })();
