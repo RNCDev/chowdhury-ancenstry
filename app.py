@@ -453,7 +453,6 @@ import os as _os
 # Run on startup (both direct and via gunicorn)
 init_db()
 _ensure_secret_key()
-from seed import seed; seed()
 
 if __name__ == '__main__':
     port = int(_os.environ.get('PORT', 5000))
