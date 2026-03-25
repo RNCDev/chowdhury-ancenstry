@@ -2,6 +2,22 @@
 
 {% block title %}People — Chowdhury Family Tree{% endblock %}
 
+{% macro sort_link(field, label) %}
+{% set next_order = 'desc' if sort == field and order == 'asc' else 'asc' %}
+<a href="?sort={{ field }}&order={{ next_order }}{% if search %}&q={{ search }}{% endif %}" class="sort-btn {% if sort == field %}sort-active{% endif %}">
+    {{ label }}
+    {% if sort == field %}
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        {% if order == 'asc' %}
+        <polyline points="18 15 12 9 6 15"/>
+        {% else %}
+        <polyline points="6 9 12 15 18 9"/>
+        {% endif %}
+    </svg>
+    {% endif %}
+</a>
+{% endmacro %}
+
 {% block content %}
 <div class="page-header">
     <h2 class="page-title">People</h2>
@@ -13,44 +29,43 @@
     </form>
 </div>
 
-<div class="card">
 {% if people %}
-<table>
-    <thead>
-        <tr>
-            <th>Name</th>
-            <th>Birth Name</th>
-            <th>Date of Birth</th>
-            <th>Place of Birth</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for p in people %}
-        <tr>
-            <td class="td-name">
-                <a href="{{ url_for('person_detail', person_id=p.id) }}">
-                    {{ p.first_name }}{% if p.middle_name %} {{ p.middle_name }}{% endif %} {{ p.last_name }}
-                </a>
-            </td>
-            <td class="td-meta">
-                {% if p.birth_name_first or p.birth_name_last %}
-                    {{ p.birth_name_first or p.first_name }} {{ p.birth_name_last or p.last_name }}
-                {% endif %}
-            </td>
-            <td class="td-meta td-dob">{{ p.date_of_birth or '' }}</td>
-            <td class="td-meta">{{ p.place_of_birth or '' }}</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+<div class="sort-bar">
+    <span class="sort-bar-label">Sort by</span>
+    {{ sort_link('name', 'Name') }}
+    {{ sort_link('dob', 'Date of Birth') }}
+    {{ sort_link('place', 'Place of Birth') }}
+</div>
+
+<div class="people-list">
+    {% for p in people %}
+    <a href="{{ url_for('person_detail', person_id=p.id) }}" class="person-row">
+        <div class="person-row-name">
+            {{ p.first_name }}{% if p.middle_name %} {{ p.middle_name }}{% endif %} {{ p.last_name }}
+        </div>
+        <div class="person-row-details">
+            {% if p.date_of_birth %}
+            <span class="person-row-tag">{{ p.date_of_birth }}</span>
+            {% endif %}
+            {% if p.place_of_birth %}
+            <span class="person-row-tag">{{ p.place_of_birth }}</span>
+            {% endif %}
+        </div>
+        <svg class="person-row-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"/>
+        </svg>
+    </a>
+    {% endfor %}
+</div>
 {% else %}
-<div class="empty-state">
-    {% if search %}
-        No results for "<strong>{{ search }}</strong>". <a href="{{ url_for('person_list') }}">Clear search</a>.
-    {% else %}
-        No people yet. <a href="{{ url_for('person_new') }}">Add someone</a>.
-    {% endif %}
+<div class="card">
+    <div class="empty-state">
+        {% if search %}
+            No results for "<strong>{{ search }}</strong>". <a href="{{ url_for('person_list') }}">Clear search</a>.
+        {% else %}
+            No people yet. <a href="{{ url_for('person_new') }}">Add someone</a>.
+        {% endif %}
+    </div>
 </div>
 {% endif %}
-</div>
 {% endblock %}

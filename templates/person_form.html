@@ -3,73 +3,88 @@
 {% block title %}{% if person and person.id is defined %}Edit Person{% else %}Add Person{% endif %} — Chowdhury Family Tree{% endblock %}
 
 {% block content %}
-<h2>{% if person and person.id is defined %}Edit Person{% else %}Add Person{% endif %}</h2>
+<h2 class="page-title">{% if person and person.id is defined %}Edit Person{% else %}Add Person{% endif %}</h2>
 
-<form method="post" enctype="multipart/form-data">
-    <div class="grid">
-        <label>
-            First Name *
-            <input type="text" name="first_name" value="{{ person.first_name if person else '' }}" required>
-        </label>
-        <label>
-            Middle Name
-            <input type="text" name="middle_name" value="{{ person.middle_name if person and person.middle_name else '' }}">
-        </label>
-        <label>
-            Last Name *
-            <input type="text" name="last_name" value="{{ person.last_name if person else '' }}" required>
-        </label>
-    </div>
+<div class="form-card">
+    <form method="post" enctype="multipart/form-data">
+        <div class="form-section">
+            <div class="form-section-title">Name</div>
+            <div class="form-grid form-grid-3">
+                <label>
+                    First Name *
+                    <input type="text" name="first_name" value="{{ person.first_name if person else '' }}" required>
+                </label>
+                <label>
+                    Middle Name
+                    <input type="text" name="middle_name" value="{{ person.middle_name if person and person.middle_name else '' }}">
+                </label>
+                <label>
+                    Last Name *
+                    <input type="text" name="last_name" value="{{ person.last_name if person else '' }}" required>
+                </label>
+            </div>
+        </div>
 
-    <div class="grid">
-        <label>
-            Birth First Name
-            <input type="text" name="birth_name_first" value="{{ person.birth_name_first if person and person.birth_name_first else '' }}"
-                   placeholder="If different from current">
-        </label>
-        <label>
-            Birth Last Name
-            <input type="text" name="birth_name_last" value="{{ person.birth_name_last if person and person.birth_name_last else '' }}"
-                   placeholder="Maiden name, etc.">
-        </label>
-    </div>
+        <div class="form-section">
+            <div class="form-section-title">Birth Name</div>
+            <div class="form-grid form-grid-2">
+                <label>
+                    Birth First Name
+                    <input type="text" name="birth_name_first" value="{{ person.birth_name_first if person and person.birth_name_first else '' }}" placeholder="If different from current">
+                </label>
+                <label>
+                    Birth Last Name
+                    <input type="text" name="birth_name_last" value="{{ person.birth_name_last if person and person.birth_name_last else '' }}" placeholder="Maiden name, etc.">
+                </label>
+            </div>
+        </div>
 
-    <div class="grid">
-        <label>
-            Date of Birth
-            <input type="date" name="date_of_birth" value="{{ person.date_of_birth if person and person.date_of_birth else '' }}">
-        </label>
-        <label>
-            Place of Birth
-            <input type="text" name="place_of_birth" value="{{ person.place_of_birth if person and person.place_of_birth else '' }}">
-        </label>
-    </div>
+        <div class="form-section">
+            <div class="form-section-title">Details</div>
+            <div class="form-grid form-grid-2">
+                <label>
+                    Date of Birth
+                    <input type="date" name="date_of_birth" value="{{ person.date_of_birth if person and person.date_of_birth else '' }}">
+                </label>
+                <label>
+                    Place of Birth
+                    <input type="text" name="place_of_birth" value="{{ person.place_of_birth if person and person.place_of_birth else '' }}">
+                </label>
+            </div>
+        </div>
 
-    <div class="grid">
-        <label>
-            Email
-            <input type="email" name="email" value="{{ person.email if person and person.email else '' }}">
-        </label>
-        <label>
-            LinkedIn URL
-            <input type="url" name="linkedin_url" value="{{ person.linkedin_url if person and person.linkedin_url else '' }}"
-                   placeholder="https://linkedin.com/in/...">
-        </label>
-    </div>
+        <div class="form-section">
+            <div class="form-section-title">Contact</div>
+            <div class="form-grid form-grid-2">
+                <label>
+                    Email
+                    <input type="email" name="email" value="{{ person.email if person and person.email else '' }}">
+                </label>
+                <label>
+                    LinkedIn URL
+                    <input type="url" name="linkedin_url" value="{{ person.linkedin_url if person and person.linkedin_url else '' }}" placeholder="https://linkedin.com/in/…">
+                </label>
+            </div>
+        </div>
 
-    <label>
-        Photo
-        <input type="file" name="photo" accept="image/*">
-        {% if person and person.photo_path is defined and person.photo_path %}
-        <small>Current photo: {{ person.photo_path }}</small>
-        {% endif %}
-    </label>
+        <div class="form-section">
+            <div class="form-section-title">Photo &amp; Notes</div>
+            <div class="form-grid">
+                <label>
+                    Photo
+                    <input type="file" name="photo" accept="image/*">
+                    {% if person and person.photo_path is defined and person.photo_path %}
+                    <small>Current photo: {{ person.photo_path }}</small>
+                    {% endif %}
+                </label>
+                <label>
+                    Notes
+                    <textarea name="notes" rows="3">{{ person.notes if person and person.notes else '' }}</textarea>
+                </label>
+            </div>
+        </div>
 
-    <label>
-        Notes
-        <textarea name="notes" rows="3">{{ person.notes if person and person.notes else '' }}</textarea>
-    </label>
-
-    <button type="submit">Save</button>
-</form>
+        <button type="submit">Save</button>
+    </form>
+</div>
 {% endblock %}

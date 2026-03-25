@@ -97,21 +97,35 @@ def logout():
 @login_required
 def person_list():
     search = request.args.get('q', '').strip()
+    sort = request.args.get('sort', 'name')
+    order = request.args.get('order', 'asc')
+
+    allowed_sorts = {
+        'name': 'last_name, first_name',
+        'dob': 'date_of_birth',
+        'place': 'place_of_birth',
+    }
+    order_clause = allowed_sorts.get(sort, 'last_name, first_name')
+    direction = 'DESC' if order == 'desc' else 'ASC'
+    # NULLs go last
+    order_sql = f"ORDER BY {order_clause} IS NULL, {order_clause} {direction}"
+
     db = get_db()
     if search:
-        query = """
+        query = f"""
             SELECT * FROM person
             WHERE first_name LIKE ? OR middle_name LIKE ? OR last_name LIKE ?
                 OR birth_name_first LIKE ? OR birth_name_last LIKE ?
                 OR place_of_birth LIKE ? OR email LIKE ?
-            ORDER BY last_name, first_name
+            {order_sql}
         """
         like = f'%{search}%'
         people = db.execute(query, (like, like, like, like, like, like, like)).fetchall()
     else:
-        people = db.execute("SELECT * FROM person ORDER BY last_name, first_name").fetchall()
+        people = db.execute(f"SELECT * FROM person {order_sql}").fetchall()
     db.close()
-    return render_template('person_list.html', people=people, search=search)
+    return render_template('person_list.html', people=people, search=search,
+                           sort=sort, order=order)
 
 
 @app.route('/person/new', methods=['GET', 'POST'])
