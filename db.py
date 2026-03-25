@@ -1,7 +1,9 @@
 import os
 import sqlite3
 
-DATABASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'family.db')
+# Use /app/data if the Railway volume is mounted there, otherwise local
+_DATA_DIR = '/app/data' if os.path.isdir('/app/data') else os.path.dirname(os.path.abspath(__file__))
+DATABASE = os.path.join(_DATA_DIR, 'family.db')
 
 
 def get_db():
