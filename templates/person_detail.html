@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}{{ person.first_name }} {{ person.last_name }} — Chowdhury Family Tree{% endblock %}
+
+{% block content %}
+<hgroup>
+    <h2>{{ person.first_name }} {% if person.middle_name %}{{ person.middle_name }} {% endif %}{{ person.last_name }}</h2>
+    {% if person.birth_name_first or person.birth_name_last %}
+    <p>née {{ person.birth_name_first or person.first_name }} {{ person.birth_name_last or person.last_name }}</p>
+    {% endif %}
+</hgroup>
+
+<div class="grid">
+    <div>
+        {% if person.photo_path %}
+        <img src="{{ url_for('uploaded_file', filename=person.photo_path) }}" alt="Photo" style="max-width: 200px; border-radius: 8px;">
+        {% endif %}
+
+        <dl>
+            {% if person.date_of_birth %}
+            <dt>Date of Birth</dt><dd>{{ person.date_of_birth }}</dd>
+            {% endif %}
+            {% if person.place_of_birth %}
+            <dt>Place of Birth</dt><dd>{{ person.place_of_birth }}</dd>
+            {% endif %}
+            {% if person.email %}
+            <dt>Email</dt><dd><a href="mailto:{{ person.email }}">{{ person.email }}</a></dd>
+            {% endif %}
+            {% if person.linkedin_url %}
+            <dt>LinkedIn</dt><dd><a href="{{ person.linkedin_url }}" target="_blank">Profile</a></dd>
+            {% endif %}
+            {% if person.notes %}
+            <dt>Notes</dt><dd>{{ person.notes }}</dd>
+            {% endif %}
+        </dl>
+
+        <div role="group">
+            <a href="{{ url_for('person_edit', person_id=person.id) }}" role="button">Edit</a>
+            <form method="post" action="{{ url_for('person_delete', person_id=person.id) }}" style="display:inline;">
+                <button type="submit" class="secondary" onclick="return confirm('Delete this person?')">Delete</button>
+            </form>
+        </div>
+    </div>
+
+    <div>
+        <h3>Relationships</h3>
+        {% if relationships %}
+        <table>
+            <tbody>
+                {% for r in relationships %}
+                <tr>
+                    <td>
+                        {% if r.rel_type == 'parent_child' %}
+                            {% if r.person1_id == person.id %}
+                                Parent of <a href="{{ url_for('person_detail', person_id=r.person2_id) }}">{{ r.p2_first }} {{ r.p2_last }}</a>
+                            {% else %}
+                                Child of <a href="{{ url_for('person_detail', person_id=r.person1_id) }}">{{ r.p1_first }} {{ r.p1_last }}</a>
+                            {% endif %}
+                        {% elif r.rel_type == 'adopted_parent_child' %}
+                            {% if r.person1_id == person.id %}
+                                Adoptive parent of <a href="{{ url_for('person_detail', person_id=r.person2_id) }}">{{ r.p2_first }} {{ r.p2_last }}</a>
+                            {% else %}
+                                Adopted by <a href="{{ url_for('person_detail', person_id=r.person1_id) }}">{{ r.p1_first }} {{ r.p1_last }}</a>
+                            {% endif %}
+                        {% elif r.rel_type == 'spouse' %}
+                            {% if r.person1_id == person.id %}
+                                Spouse: <a href="{{ url_for('person_detail', person_id=r.person2_id) }}">{{ r.p2_first }} {{ r.p2_last }}</a>
+                            {% else %}
+                                Spouse: <a href="{{ url_for('person_detail', person_id=r.person1_id) }}">{{ r.p1_first }} {{ r.p1_last }}</a>
+                            {% endif %}
+                        {% elif r.rel_type == 'divorced' %}
+                            {% if r.person1_id == person.id %}
+                                Former spouse: <a href="{{ url_for('person_detail', person_id=r.person2_id) }}">{{ r.p2_first }} {{ r.p2_last }}</a>
+                            {% else %}
+                                Former spouse: <a href="{{ url_for('person_detail', person_id=r.person1_id) }}">{{ r.p1_first }} {{ r.p1_last }}</a>
+                            {% endif %}
+                        {% endif %}
+                    </td>
+                    <td>
+                        <form method="post" action="{{ url_for('relationship_delete', rel_id=r.id) }}" style="display:inline;">
+                            <input type="hidden" name="person_id" value="{{ person.id }}">
+                            <button type="submit" class="secondary outline" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">Remove</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p><em>No relationships yet.</em></p>
+        {% endif %}
+
+        <h4>Add Relationship</h4>
+        <form method="post" action="{{ url_for('relationship_add') }}">
+            <input type="hidden" name="person_id" value="{{ person.id }}">
+            <div class="grid">
+                <select name="rel_type" required>
+                    <option value="">— Type —</option>
+                    <option value="parent">Parent of...</option>
+                    <option value="child">Child of...</option>
+                    <option value="spouse">Spouse</option>
+                    <option value="divorced">Former Spouse</option>
+                    <option value="adopted_parent">Adoptive Parent of...</option>
+                    <option value="adopted_child">Adopted by...</option>
+                </select>
+                <select name="other_id" required>
+                    <option value="">— Person —</option>
+                    {% for p in all_people %}
+                    <option value="{{ p.id }}">{{ p.first_name }} {{ p.last_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit">Add Relationship</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

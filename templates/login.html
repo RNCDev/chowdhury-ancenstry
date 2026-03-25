@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}Login — Chowdhury Family Tree{% endblock %}
+
+{% block content %}
+<article style="max-width: 400px; margin: 2rem auto;">
+    <h2>{% if setup %}Set Up Password{% else %}Login{% endif %}</h2>
+    {% if setup %}
+    <p>Welcome! Set a password to protect your family tree.</p>
+    {% endif %}
+    <form method="post">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required
+               placeholder="{% if setup %}Choose a password{% else %}Enter password{% endif %}"
+               autofocus>
+        {% if setup %}
+        <small>At least 4 characters.</small>
+        {% endif %}
+        <button type="submit">{% if setup %}Set Password{% else %}Login{% endif %}</button>
+    </form>
+</article>
+{% endblock %}

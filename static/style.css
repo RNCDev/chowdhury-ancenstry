@@ -1,0 +1,66 @@
+/* Flash messages */
+.flash-error {
+    background: #ffeaea;
+    border-left: 4px solid #e74c3c;
+    color: #c0392b;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    border-radius: 4px;
+}
+
+.flash-success {
+    background: #eafff0;
+    border-left: 4px solid #27ae60;
+    color: #1e8449;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    border-radius: 4px;
+}
+
+/* Tree visualization */
+.person-card {
+    fill: #f0f4ff;
+    stroke: #4a6fa5;
+    stroke-width: 1.5;
+}
+
+.person-card:hover {
+    fill: #dce6ff;
+    stroke: #2c5282;
+    stroke-width: 2;
+}
+
+.spouse-card {
+    fill: #fff5f5;
+    stroke: #e74c3c;
+}
+
+.spouse-card:hover {
+    fill: #ffe8e8;
+    stroke: #c0392b;
+    stroke-width: 2;
+}
+
+.person-name {
+    font-size: 13px;
+    font-weight: 600;
+    fill: #2d3748;
+}
+
+.person-year {
+    font-size: 11px;
+    fill: #718096;
+}
+
+/* Person detail layout */
+dt {
+    font-weight: 600;
+    color: var(--pico-muted-color);
+    font-size: 0.85rem;
+    margin-top: 0.5rem;
+}
+
+dd {
+    margin-left: 0;
+    margin-bottom: 0.25rem;
+}
