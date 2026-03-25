@@ -16,13 +16,13 @@ def seed():
 
     # Insert people
     people = [
-        ('Prodiptya', None, 'Chowdhury', None, None, None, None, None, None, None),
-        ('Sangeeta', None, 'Chowdhury', None, None, None, None, None, None, None),
-        ('Ritujoy', None, 'Chowdhury', None, None, None, None, None, None, None),
-        ('Joseph', None, 'Noreika', None, None, None, None, None, None, None),
-        ('Joanne', None, 'Keane', None, None, None, None, None, None, None),
-        ('Sarah', 'Elizabeth', 'Norieka', None, 'Keane', None, None, None, None, None),
-        ('Livia', 'Elizabeth', 'Chowdhury', None, None, None, None, None, None, None),
+        ("Prodiptya", None, "Chowdhury", None, None, None, None, None, None, None),
+        ("Sangeeta", None, "Chowdhury", None, None, None, None, None, None, None),
+        ("Ritujoy", None, "Chowdhury", None, None, None, None, None, None, None),
+        ("Joseph", None, "Noreika", None, None, None, None, None, None, None),
+        ("Joanne", None, "Keane", None, None, None, None, None, None, None),
+        ("Sarah", "Elizabeth", "Norieka", None, None, None, None, None, None, None),
+        ("Livia", "Elizabeth", "Chowdhury", None, None, None, None, None, None, None),
     ]
 
     ids = {}
@@ -38,16 +38,16 @@ def seed():
     # Insert relationships
     relationships = [
         # Spouses (person1_id < person2_id for consistency)
-        (ids['Prodiptya Chowdhury'], ids['Sangeeta Chowdhury'], 'spouse'),
-        (ids['Joseph Noreika'], ids['Joanne Keane'], 'spouse'),
-        (ids['Ritujoy Chowdhury'], ids['Sarah Norieka'], 'spouse'),
+        (ids["Prodiptya Chowdhury"], ids["Sangeeta Chowdhury"], "spouse"),
+        (ids["Joseph Noreika"], ids["Joanne Keane"], "spouse"),
+        (ids["Ritujoy Chowdhury"], ids["Sarah Norieka"], "spouse"),
         # Parent → Child
-        (ids['Prodiptya Chowdhury'], ids['Ritujoy Chowdhury'], 'parent_child'),
-        (ids['Sangeeta Chowdhury'], ids['Ritujoy Chowdhury'], 'parent_child'),
-        (ids['Joseph Noreika'], ids['Sarah Norieka'], 'parent_child'),
-        (ids['Joanne Keane'], ids['Sarah Norieka'], 'parent_child'),
-        (ids['Ritujoy Chowdhury'], ids['Livia Chowdhury'], 'parent_child'),
-        (ids['Sarah Norieka'], ids['Livia Chowdhury'], 'parent_child'),
+        (ids["Prodiptya Chowdhury"], ids["Ritujoy Chowdhury"], "parent_child"),
+        (ids["Sangeeta Chowdhury"], ids["Ritujoy Chowdhury"], "parent_child"),
+        (ids["Joseph Noreika"], ids["Sarah Norieka"], "parent_child"),
+        (ids["Joanne Keane"], ids["Sarah Norieka"], "parent_child"),
+        (ids["Ritujoy Chowdhury"], ids["Livia Chowdhury"], "parent_child"),
+        (ids["Sarah Norieka"], ids["Livia Chowdhury"], "parent_child"),
     ]
 
     for person1_id, person2_id, rel_type in relationships:
@@ -61,5 +61,5 @@ def seed():
     print("Seeded 7 people and 9 relationships.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     seed()
