@@ -110,7 +110,7 @@ button, [type="submit"] {
 
 /* ── Login page ── */
 
-/* Vintage background with cartoonic trees */
+/* Login page background */
 .page-login {
     background-color: #f5f0e1;
     min-height: 100vh;
@@ -121,25 +121,7 @@ button, [type="submit"] {
 /* Hide nav on login page */
 .page-login nav.site-nav { display: none; }
 
-/* Login page overlays (trees + noise) applied via dedicated divs */
-.login-trees {
-    position: fixed;
-    inset: 0;
-    z-index: 0;
-    pointer-events: none;
-}
-
-.login-noise {
-    position: fixed;
-    inset: 0;
-    z-index: 1;
-    pointer-events: none;
-}
-
-/* Push content above overlays */
 .page-login main.container {
-    position: relative;
-    z-index: 2;
     display: flex;
     align-items: center;
     justify-content: center;
