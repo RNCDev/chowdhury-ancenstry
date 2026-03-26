@@ -4,12 +4,24 @@
   const offscreen = document.createElement('canvas');
   const off       = offscreen.getContext('2d');
 
-  let W, H, vines = [], animStart = 0, loopDuration = 14000;
+  let W, H, vines = [], foliageClusters = [], animStart = 0, loopDuration = 14000;
 
   const PEAK_ALPHA    = 0.22;
   const HOLD_DURATION = 4000;
   const FADE_DURATION = 7000;
   const MAX_DEPTH     = 8;
+
+  // Muted autumn palette — low saturation to stay earthy
+  const FOLIAGE_COLORS = [
+    [105, 118, 65],   // dusty sage green
+    [118, 128, 58],   // olive green
+    [148, 108, 52],   // ochre / golden brown
+    [158,  88, 48],   // burnt orange
+    [138,  72, 58],   // dusty terracotta
+    [122,  95, 48],   // warm amber
+    [ 92, 110, 60],   // muted forest green
+    [162,  82, 55],   // faded rust
+  ];
 
   class RNG {
     constructor(s) { this.s = s >>> 0; }
@@ -35,6 +47,72 @@
     return `rgb(${Math.round(90-t*20)},${Math.round(105-t*40)},${Math.round(52-t*12)})`;
   }
 
+  // ── Foliage cluster — impressionistic crosshatch marks near tip nodes ──
+  class FoliageCluster {
+    constructor(x, y, startTime, rng) {
+      this.startTime = startTime;
+      this.bloomDur  = 1200 + rng.next() * 800;
+
+      // Scatter 6–10 individual marks around this point
+      const count = 6 + Math.floor(rng.next() * 5);
+      this.marks = [];
+
+      for (let i = 0; i < count; i++) {
+        const spread = 18 + rng.next() * 22;
+        const angle  = rng.next() * Math.PI * 2;
+        const mx     = x + Math.cos(angle) * spread * rng.next();
+        const my     = y + Math.sin(angle) * spread * rng.next();
+        const rot    = rng.next() * Math.PI;          // random rotation for each mark
+        const size   = 3 + rng.next() * 5;            // 3–8px arm length
+        const col    = FOLIAGE_COLORS[Math.floor(rng.next() * FOLIAGE_COLORS.length)];
+        const type   = rng.next() > 0.45 ? 'cross' : 'ellipse'; // mix of mark types
+        const delay  = rng.next() * 600;              // stagger appearance
+
+        this.marks.push({ mx, my, rot, size, col, type, delay });
+      }
+    }
+
+    draw(ctx, elapsed) {
+      if (elapsed < this.startTime) return;
+      const age = elapsed - this.startTime;
+
+      for (const m of this.marks) {
+        const markAge = age - m.delay;
+        if (markAge <= 0) continue;
+        const progress = Math.min(1, markAge / this.bloomDur);
+        // Ease in — marks appear gently
+        const alpha = Math.pow(progress, 1.8) * 0.72;
+        const [r, g, b] = m.col;
+
+        ctx.save();
+        ctx.translate(m.mx, m.my);
+        ctx.rotate(m.rot);
+        ctx.globalAlpha = alpha;
+
+        if (m.type === 'cross') {
+          // Two crossing short strokes — the crosshatch mark
+          ctx.strokeStyle = `rgb(${r},${g},${b})`;
+          ctx.lineWidth   = 0.8;
+          ctx.lineCap     = 'round';
+          ctx.beginPath();
+          ctx.moveTo(-m.size, 0); ctx.lineTo(m.size, 0);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(0, -m.size * 0.7); ctx.lineTo(0, m.size * 0.7);
+          ctx.stroke();
+        } else {
+          // Small rotated ellipse — leaf silhouette
+          ctx.fillStyle = `rgb(${r},${g},${b})`;
+          ctx.beginPath();
+          ctx.ellipse(0, 0, m.size * 0.35, m.size, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.restore();
+      }
+    }
+  }
+
   class Seg {
     constructor(x, y, inAngle, outAngle, depth, startTime, rng) {
       this.depth = depth;
@@ -50,7 +128,6 @@
       this.ex = x + Math.cos(exitAngle) * len;
       this.ey = y + Math.sin(exitAngle) * len;
 
-      // C1 continuity: cx1 aligns with inAngle, cx2 aligns with exitAngle
       const sagDir = rng.next() > 0.5 ? 1 : -1;
       const sagAmt = rng.next() * 0.15;
       const perpX  = -Math.sin(exitAngle);
@@ -98,6 +175,12 @@
           this.children.push(new Seg(this.ex, this.ey, exitAngle, bOut, Math.max(0, depth - 2), bStart, rng));
         }
       }
+
+      // Foliage clusters at shallow depths (tip region of canopy)
+      // depth 0–2: always cluster; depth 3: 60% chance
+      if (depth <= 2 || (depth === 3 && rng.next() > 0.40)) {
+        foliageClusters.push(new FoliageCluster(this.ex, this.ey, startTime + this.duration, rng));
+      }
     }
 
     draw(ctx, elapsed) {
@@ -106,8 +189,6 @@
       if (progress > 0) {
         const end = Math.max(1, Math.round(progress * (this.pts.length - 1)));
 
-        // Taper width along the segment: thick at base, thin at tip
-        // endW matches the next segment's startW for seamless joints
         const endDepth = Math.max(0, this.depth - 1);
         const endW     = Math.max(0.4, Math.pow(endDepth / MAX_DEPTH, 2) * 22);
         const startW   = this.width;
@@ -116,7 +197,6 @@
         ctx.lineCap     = 'round';
         ctx.lineJoin    = 'round';
 
-        // Draw in 7 sub-steps — enough for a smooth taper, cheap enough to run at 60fps
         const STEPS = 7;
         for (let s = 0; s < STEPS; s++) {
           const i0 = Math.floor(s       / STEPS * end);
@@ -142,6 +222,8 @@
 
   function buildVines() {
     vines = [];
+    foliageClusters = [];
+
     const seeds = [
       { x: 0,        y: H,        a: -Math.PI * 0.32, depth: 8, seed: 101 },
       { x: W,        y: H,        a: -Math.PI * 0.68, depth: 8, seed: 202 },
@@ -178,6 +260,7 @@
     off.clearRect(0, 0, W, H);
 
     for (const v of vines) v.draw(off, elapsed);
+    for (const f of foliageClusters) f.draw(off, elapsed);
 
     let alpha = PEAK_ALPHA;
     if (elapsed >= fadeStart) {
