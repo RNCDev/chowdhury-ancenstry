@@ -8,8 +8,8 @@
 
   const PEAK_ALPHA    = 0.22;
   const HOLD_DURATION = 4000;
-  const FADE_DURATION = 3000;
-  const MAX_DEPTH     = 7;
+  const FADE_DURATION = 7000;
+  const MAX_DEPTH     = 8;
 
   class RNG {
     constructor(s) { this.s = s >>> 0; }
@@ -44,7 +44,7 @@
       const wobble    = (rng.next() - 0.5) * 0.28;
       const exitAngle = Math.max(-Math.PI + 0.05, Math.min(0.30, outAngle + wobble));
 
-      const len = (28 + depth * 13) * (0.75 + rng.next() * 0.5);
+      const len = (34 + depth * 17) * (0.75 + rng.next() * 0.5);
 
       this.x  = x;  this.y  = y;
       this.ex = x + Math.cos(exitAngle) * len;
@@ -66,7 +66,7 @@
       this.exitAngle = exitAngle;
 
       const t    = depth / MAX_DEPTH;
-      this.width = Math.max(0.75, t * t * 16.5);
+      this.width = Math.max(0.75, t * t * 22);
 
       const N = 32;
       this.pts = [];
@@ -109,7 +109,7 @@
         // Taper width along the segment: thick at base, thin at tip
         // endW matches the next segment's startW for seamless joints
         const endDepth = Math.max(0, this.depth - 1);
-        const endW     = Math.max(0.4, Math.pow(endDepth / MAX_DEPTH, 2) * 16.5);
+        const endW     = Math.max(0.4, Math.pow(endDepth / MAX_DEPTH, 2) * 22);
         const startW   = this.width;
 
         ctx.strokeStyle = vineColor(this.depth);
@@ -143,22 +143,22 @@
   function buildVines() {
     vines = [];
     const seeds = [
-      { x: 0,        y: H,        a: -Math.PI * 0.32, depth: 7, seed: 101 },
-      { x: W,        y: H,        a: -Math.PI * 0.68, depth: 7, seed: 202 },
-      { x: W * 0.18, y: H,        a: -Math.PI * 0.38, depth: 6, seed: 303, delay: 300 },
-      { x: W * 0.82, y: H,        a: -Math.PI * 0.62, depth: 6, seed: 404, delay: 300 },
-      { x: W * 0.34, y: H,        a: -Math.PI * 0.44, depth: 5, seed: 505, delay: 180 },
-      { x: W * 0.66, y: H,        a: -Math.PI * 0.56, depth: 5, seed: 606, delay: 180 },
-      { x: W * 0.50, y: H,        a: -Math.PI * 0.50, depth: 5, seed: 707, delay: 450 },
-      { x: W * 0.10, y: H,        a: -Math.PI * 0.40, depth: 4, seed: 808, delay: 600 },
-      { x: W * 0.90, y: H,        a: -Math.PI * 0.60, depth: 4, seed: 909, delay: 600 },
-      { x: W * 0.26, y: H,        a: -Math.PI * 0.46, depth: 4, seed: 1010, delay: 400 },
-      { x: W * 0.74, y: H,        a: -Math.PI * 0.54, depth: 4, seed: 1111, delay: 400 },
-      { x: 0,        y: H * 0.68, a: -Math.PI * 0.12, depth: 5, seed: 1212, delay: 500 },
-      { x: W,        y: H * 0.68, a: -Math.PI * 0.88, depth: 5, seed: 1313, delay: 500 },
-      { x: 0,        y: H * 0.42, a: -Math.PI * 0.08, depth: 4, seed: 1414, delay: 750 },
-      { x: W,        y: H * 0.42, a: -Math.PI * 0.92, depth: 4, seed: 1515, delay: 750 },
-      { x: W * 0.50, y: H,        a: -Math.PI * 0.36, depth: 4, seed: 1616, delay: 650 },
+      { x: 0,        y: H,        a: -Math.PI * 0.32, depth: 8, seed: 101 },
+      { x: W,        y: H,        a: -Math.PI * 0.68, depth: 8, seed: 202 },
+      { x: W * 0.18, y: H,        a: -Math.PI * 0.38, depth: 7, seed: 303, delay: 300 },
+      { x: W * 0.82, y: H,        a: -Math.PI * 0.62, depth: 7, seed: 404, delay: 300 },
+      { x: W * 0.34, y: H,        a: -Math.PI * 0.44, depth: 6, seed: 505, delay: 180 },
+      { x: W * 0.66, y: H,        a: -Math.PI * 0.56, depth: 6, seed: 606, delay: 180 },
+      { x: W * 0.50, y: H,        a: -Math.PI * 0.50, depth: 6, seed: 707, delay: 450 },
+      { x: W * 0.10, y: H,        a: -Math.PI * 0.40, depth: 5, seed: 808, delay: 600 },
+      { x: W * 0.90, y: H,        a: -Math.PI * 0.60, depth: 5, seed: 909, delay: 600 },
+      { x: W * 0.26, y: H,        a: -Math.PI * 0.46, depth: 5, seed: 1010, delay: 400 },
+      { x: W * 0.74, y: H,        a: -Math.PI * 0.54, depth: 5, seed: 1111, delay: 400 },
+      { x: 0,        y: H * 0.68, a: -Math.PI * 0.12, depth: 6, seed: 1212, delay: 500 },
+      { x: W,        y: H * 0.68, a: -Math.PI * 0.88, depth: 6, seed: 1313, delay: 500 },
+      { x: 0,        y: H * 0.42, a: -Math.PI * 0.08, depth: 5, seed: 1414, delay: 750 },
+      { x: W,        y: H * 0.42, a: -Math.PI * 0.92, depth: 5, seed: 1515, delay: 750 },
+      { x: W * 0.50, y: H,        a: -Math.PI * 0.36, depth: 5, seed: 1616, delay: 650 },
     ];
 
     for (const s of seeds) {
