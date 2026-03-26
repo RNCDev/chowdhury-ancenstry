@@ -2,6 +2,8 @@
 block body_class %}page-login{% endblock %} {%
 block content %}
 
+<canvas id="vine-canvas"></canvas>
+
 <div class="login-card">
     <h2>{% if setup %}Set Up Password{% else %}Welcome Back{% endif %}</h2>
     {% if setup %}
@@ -27,4 +29,8 @@ block content %}
         </button>
     </form>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='vine.js') }}"></script>
 {% endblock %}
