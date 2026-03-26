@@ -1,8 +1,5 @@
-{% extends "base.html" %}
-
-{% block title %}Login — Chowdhury Family Tree{% endblock %}
-
-{% block content %}
+{% extends "base.html" %} {% block title %}Login — Family Tree{% endblock %} {%
+block content %}
 <div class="login-card">
     <h2>{% if setup %}Set Up Password{% else %}Welcome Back{% endif %}</h2>
     {% if setup %}
@@ -12,13 +9,20 @@
     {% endif %}
     <form method="post">
         <label for="password">Password</label>
-        <input type="password" id="password" name="password" required
-               placeholder="{% if setup %}Choose a password{% else %}Enter password{% endif %}"
-               autofocus>
+        <input
+            type="password"
+            id="password"
+            name="password"
+            required
+            placeholder="{% if setup %}Choose a password{% else %}Enter password{% endif %}"
+            autofocus
+        />
         {% if setup %}
         <small>At least 4 characters.</small>
         {% endif %}
-        <button type="submit">{% if setup %}Set Password{% else %}Login{% endif %}</button>
+        <button type="submit">
+            {% if setup %}Set Password{% else %}Login{% endif %}
+        </button>
     </form>
 </div>
 {% endblock %}

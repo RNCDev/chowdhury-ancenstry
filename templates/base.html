@@ -1,40 +1,40 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Chowdhury Family Tree{% endblock %}</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    {% block head %}{% endblock %}
-</head>
-<body class="{% block body_class %}{% endblock %}">
-    <nav class="site-nav">
-        <a class="brand" href="{{ url_for('tree') }}">Chowdhury Family Tree</a>
-        {% if session.get('authenticated') %}
-        <ul class="nav-links">
-            <li><a href="{{ url_for('tree') }}">Tree</a></li>
-            <li><a href="{{ url_for('person_list') }}">People</a></li>
-            <li><a href="{{ url_for('person_new') }}">Add Person</a></li>
-            <li><a href="{{ url_for('logout') }}">Logout</a></li>
-        </ul>
-        {% endif %}
-    </nav>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&display=swap"
+            rel="stylesheet"
+        />
+        <link
+            rel="stylesheet"
+            href="{{ url_for('static', filename='style.css') }}"
+        />
+        {% block head %}{% endblock %}
+    </head>
+    <body class="{% block body_class %}{% endblock %}">
+        <nav class="site-nav">
+            {% if session.get('authenticated') %}
+            <ul class="nav-links">
+                <li><a href="{{ url_for('tree') }}">Tree</a></li>
+                <li><a href="{{ url_for('person_list') }}">People</a></li>
+                <li><a href="{{ url_for('person_new') }}">Add Person</a></li>
+                <li><a href="{{ url_for('logout') }}">Logout</a></li>
+            </ul>
+            {% endif %}
+        </nav>
 
-    <main class="container">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-        {% for category, message in messages %}
-        <div class="flash-{{ category }}">{{ message }}</div>
-        {% endfor %}
-        {% endif %}
-        {% endwith %}
+        <main class="container">
+            {% with messages = get_flashed_messages(with_categories=true) %} {%
+            if messages %} {% for category, message in messages %}
+            <div class="flash-{{ category }}">{{ message }}</div>
+            {% endfor %} {% endif %} {% endwith %} {% block content %}{%
+            endblock %}
+        </main>
 
-        {% block content %}{% endblock %}
-    </main>
-
-    {% block scripts %}{% endblock %}
-</body>
+        {% block scripts %}{% endblock %}
+    </body>
 </html>
