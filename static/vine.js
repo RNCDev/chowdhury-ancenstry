@@ -243,8 +243,9 @@
       { x: W * 0.50, y: H,        a: -Math.PI * 0.36, depth: 5, seed: 1616, delay: 650 },
     ];
 
+    const epoch = (Math.random() * 0xFFFFFFFF) >>> 0;
     for (const s of seeds) {
-      const rng = new RNG((s.seed * 2654435761) >>> 0);
+      const rng = new RNG(((s.seed ^ epoch) * 2654435761) >>> 0);
       vines.push(new Seg(s.x, s.y, s.a, s.a, s.depth, s.delay || 0, rng));
     }
 
@@ -264,7 +265,7 @@
 
     let alpha = PEAK_ALPHA;
     if (elapsed >= fadeStart) {
-      if (elapsed >= totalCycle) { animStart = ts; requestAnimationFrame(draw); return; }
+      if (elapsed >= totalCycle) { buildVines(); animStart = ts; requestAnimationFrame(draw); return; }
       alpha = PEAK_ALPHA * (1 - (elapsed - fadeStart) / FADE_DURATION);
     }
 
