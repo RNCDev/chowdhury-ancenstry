@@ -99,6 +99,16 @@ Background `--bg-card`, border `1px solid --border-default`, radius `--radius-md
 - Secondary buttons: `--bg-card` background, `--border-default` border, `--text-body` text
 - Danger buttons: transparent background, `--color-error` border and text
 
+### Compact Form Variant
+For dense data-entry forms (e.g., the person add/edit form), a compact variant is acceptable. Scoped to `.page-form`:
+- Section margins reduced from `--space-lg` to `--space-md`
+- Input vertical padding reduced
+- Section titles use a left-border accent (`3px solid --accent`, normal case) instead of uppercase text
+- This is an intentional departure from the default generous whitespace for forms where vertical density improves usability
+
+### Tabs
+Used inside cards to switch between content panes. Structure: `.form-tabs` flex container with `.form-tab` buttons. Active tab gets `--accent` bottom border, `--text-primary` color, weight 600. Inactive tabs are `--text-muted`. Tab switching is pure client-side JS (toggle `display` on content divs). Form data is preserved because hidden fields remain in the DOM.
+
 ### Lists
 Card-row pattern: container with row items. Rows use `--bg-card` background, hover to `--bg-hover`. Name is `--text-primary` weight 600, metadata is `--text-muted`.
 
@@ -108,14 +118,17 @@ Two-column grid that collapses to single column below 768px. Each column is a ca
 ### Flash Messages
 Left-border accent (3px). Error: `--color-error-bg` background, `--color-error` border. Success: `--color-success-bg` background, `--color-success` border. Radius `--radius-sm`.
 
-### Navigation
-Sticky top bar, `--bg-card` background, bottom border `--border-default`. Brand is `--text-primary` weight 700. Links are `--text-body`, hover to `--text-primary`.
+### Back Arrow
+Fixed top-left on inner pages (form, detail, list). SVG chevron-left icon, links to tree (home). `--text-muted` color, hover `--text-primary`. Hidden on tree page and login page via `.page-tree .back-arrow, .page-login .back-arrow { display: none; }`. Every interior template must set a `body_class` block.
+
+### Utility Pill
+Fixed top-right with `--space-xl` padding from edge. `--bg-card` background, `--border-default` border, `--radius-sm`, `--shadow-sm`. Contains "Add Person" (icon + label) and a muted logout icon, separated by a thin divider. On mobile (< 480px), the "Add Person" label hides, leaving just the icon. Hidden on login page.
 
 ## Layout Rules
 
 - `main.container`: max-width 960px, centered, `--space-xl` vertical / `--space-lg` horizontal padding
 - Tree page: full-bleed (overrides container to full width, no padding)
-- Nav: sticky, ~56px height
+- No top nav bar — navigation is via back arrow (inner pages) and FAB (global actions)
 - Use CSS Grid and Flexbox — no float hacks
 - Responsive breakpoints: 768px (detail layout), 600px (form grids), 480px (relationship form)
 

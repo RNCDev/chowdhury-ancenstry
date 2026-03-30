@@ -1,90 +1,167 @@
 {% extends "base.html" %}
 
+{% block body_class %}page-form{% endblock %}
+
 {% block title %}{% if person and person.id is defined %}Edit Person{% else %}Add Person{% endif %} — Chowdhury Family Tree{% endblock %}
 
 {% block content %}
 <h2 class="page-title">{% if person and person.id is defined %}Edit Person{% else %}Add Person{% endif %}</h2>
 
-<div class="form-card">
-    <form method="post" enctype="multipart/form-data">
-        <div class="form-section">
-            <div class="form-section-title">Name</div>
-            <div class="form-grid form-grid-3">
-                <label>
-                    First Name *
-                    <input type="text" name="first_name" value="{{ person.first_name if person else '' }}" required>
-                </label>
-                <label>
-                    Middle Name
-                    <input type="text" name="middle_name" value="{{ person.middle_name if person and person.middle_name else '' }}">
-                </label>
-                <label>
-                    Last Name *
-                    <input type="text" name="last_name" value="{{ person.last_name if person else '' }}" required>
-                </label>
-            </div>
-        </div>
+<div class="form-card" {% if person and person.id is defined %}data-person-id="{{ person.id }}"{% endif %}>
+    <div class="form-tabs">
+        <button type="button" class="form-tab active" data-tab="details">Details</button>
+        <button type="button" class="form-tab" data-tab="relationships">Relationships</button>
+    </div>
 
-        <div class="form-section">
-            <div class="form-section-title">Birth Name</div>
-            <div class="form-grid form-grid-2">
-                <label>
-                    Birth First Name
-                    <input type="text" name="birth_name_first" value="{{ person.birth_name_first if person and person.birth_name_first else '' }}" placeholder="If different from current">
-                </label>
-                <label>
-                    Birth Last Name
-                    <input type="text" name="birth_name_last" value="{{ person.birth_name_last if person and person.birth_name_last else '' }}" placeholder="Maiden name, etc.">
-                </label>
+    <div class="tab-content-details">
+        <form method="post" enctype="multipart/form-data">
+            <div class="form-section">
+                <div class="form-grid form-grid-3">
+                    <label>
+                        First Name *
+                        <input type="text" name="first_name" value="{{ person.first_name if person else '' }}" required>
+                    </label>
+                    <label>
+                        Middle
+                        <input type="text" name="middle_name" value="{{ person.middle_name if person and person.middle_name else '' }}">
+                    </label>
+                    <label>
+                        Last Name *
+                        <input type="text" name="last_name" value="{{ person.last_name if person else '' }}" required>
+                    </label>
+                </div>
             </div>
-        </div>
 
-        <div class="form-section">
-            <div class="form-section-title">Details</div>
-            <div class="form-grid form-grid-2">
-                <label>
-                    Date of Birth
-                    <input type="date" name="date_of_birth" value="{{ person.date_of_birth if person and person.date_of_birth else '' }}">
-                </label>
-                <label>
-                    Place of Birth
-                    <input type="text" name="place_of_birth" value="{{ person.place_of_birth if person and person.place_of_birth else '' }}">
-                </label>
+            <div class="form-section form-section-secondary">
+                <div class="form-grid form-grid-2">
+                    <label>
+                        Birth First Name
+                        <input type="text" name="birth_name_first" value="{{ person.birth_name_first if person and person.birth_name_first else '' }}" placeholder="If different">
+                    </label>
+                    <label>
+                        Birth Last Name
+                        <input type="text" name="birth_name_last" value="{{ person.birth_name_last if person and person.birth_name_last else '' }}" placeholder="Maiden name, etc.">
+                    </label>
+                </div>
             </div>
-        </div>
 
-        <div class="form-section">
-            <div class="form-section-title">Contact</div>
-            <div class="form-grid form-grid-2">
-                <label>
-                    Email
-                    <input type="email" name="email" value="{{ person.email if person and person.email else '' }}">
-                </label>
-                <label>
-                    LinkedIn URL
-                    <input type="url" name="linkedin_url" value="{{ person.linkedin_url if person and person.linkedin_url else '' }}" placeholder="https://linkedin.com/in/…">
-                </label>
+            <div class="form-section">
+                <div class="form-grid form-grid-2">
+                    <label>
+                        Date of Birth
+                        <input type="date" name="date_of_birth" value="{{ person.date_of_birth if person and person.date_of_birth else '' }}">
+                    </label>
+                    <label>
+                        Place of Birth
+                        <input type="text" name="place_of_birth" value="{{ person.place_of_birth if person and person.place_of_birth else '' }}">
+                    </label>
+                </div>
             </div>
-        </div>
 
-        <div class="form-section">
-            <div class="form-section-title">Photo &amp; Notes</div>
-            <div class="form-grid">
-                <label>
-                    Photo
-                    <input type="file" name="photo" accept="image/*">
-                    {% if person and person.photo_path is defined and person.photo_path %}
-                    <small>Current photo: {{ person.photo_path }}</small>
-                    {% endif %}
-                </label>
-                <label>
-                    Notes
-                    <textarea name="notes" rows="3">{{ person.notes if person and person.notes else '' }}</textarea>
-                </label>
+            <div class="form-section">
+                <div class="form-grid form-grid-2">
+                    <label>
+                        Email
+                        <input type="email" name="email" value="{{ person.email if person and person.email else '' }}">
+                    </label>
+                    <label>
+                        LinkedIn
+                        <input type="url" name="linkedin_url" value="{{ person.linkedin_url if person and person.linkedin_url else '' }}" placeholder="https://linkedin.com/in/…">
+                    </label>
+                </div>
             </div>
-        </div>
 
-        <button type="submit">Save</button>
-    </form>
+            <div class="form-section">
+                <div class="form-grid form-grid-2">
+                    <label>
+                        Photo
+                        <input type="file" name="photo" accept="image/*">
+                        {% if person and person.photo_path is defined and person.photo_path %}
+                        <small class="field-hint">{{ person.photo_path }}</small>
+                        {% endif %}
+                    </label>
+                    <label>
+                        Notes
+                        <textarea name="notes" rows="3">{{ person.notes if person and person.notes else '' }}</textarea>
+                    </label>
+                </div>
+            </div>
+
+            <button type="submit">Save</button>
+        </form>
+
+        {% if person and person.id is defined %}
+        <form method="post" action="{{ url_for('person_delete', person_id=person.id) }}" class="form-delete">
+            <button type="submit" class="btn-icon-danger" aria-label="Delete person" onclick="return confirm('Delete this person? This cannot be undone.')">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    <line x1="10" y1="11" x2="10" y2="17"/>
+                    <line x1="14" y1="11" x2="14" y2="17"/>
+                </svg>
+            </button>
+        </form>
+        {% endif %}
+    </div>
+
+    <div class="tab-content-relationships" style="display: none;">
+        {% if person and person.id is defined %}
+            <div id="rel-list">
+                {% if relationships %}
+                    {% for r in relationships %}
+                    <div class="rel-item" data-rel-id="{{ r.id }}">
+                        <span class="rel-label">
+                            {% if r.rel_type == 'parent_child' %}
+                                {% if r.person1_id == person.id %}Parent{% else %}Child{% endif %}
+                            {% elif r.rel_type == 'adopted_parent_child' %}
+                                {% if r.person1_id == person.id %}Adoptive parent{% else %}Adopted by{% endif %}
+                            {% elif r.rel_type == 'spouse' %}Spouse
+                            {% elif r.rel_type == 'divorced' %}Former spouse
+                            {% endif %}
+                        </span>
+                        <span class="rel-person">
+                            {% set other_id = r.person2_id if r.person1_id == person.id else r.person1_id %}
+                            {% set other_name = (r.p2_first ~ ' ' ~ r.p2_last) if r.person1_id == person.id else (r.p1_first ~ ' ' ~ r.p1_last) %}
+                            <a href="{{ url_for('person_detail', person_id=other_id) }}">{{ other_name }}</a>
+                        </span>
+                        <button type="button" class="btn-outline-danger btn-sm rel-remove-btn"
+                                data-rel-id="{{ r.id }}" data-person-id="{{ person.id }}">Remove</button>
+                    </div>
+                    {% endfor %}
+                {% endif %}
+            </div>
+            {% if not relationships %}
+            <p class="tab-muted-message" id="rel-empty">No relationships yet.</p>
+            {% endif %}
+
+            <div class="add-rel-form">
+                <div class="add-rel-grid">
+                    <select id="rel-type">
+                        <option value="">Type</option>
+                        <option value="parent">Parent of...</option>
+                        <option value="child">Child of...</option>
+                        <option value="spouse">Spouse</option>
+                        <option value="divorced">Former Spouse</option>
+                        <option value="adopted_parent">Adoptive Parent of...</option>
+                        <option value="adopted_child">Adopted by...</option>
+                    </select>
+                    <select id="rel-other-id">
+                        <option value="">Person</option>
+                        {% for p in all_people %}
+                        <option value="{{ p.id }}">{{ p.first_name }} {{ p.last_name }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="button" id="rel-add-btn" class="btn-secondary">+ Add</button>
+                </div>
+                <div id="rel-error" class="rel-error"></div>
+            </div>
+        {% else %}
+            <p class="tab-muted-message">Save this person first to manage relationships.</p>
+        {% endif %}
+    </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='form.js') }}"></script>
 {% endblock %}

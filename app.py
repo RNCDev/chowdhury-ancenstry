@@ -136,17 +136,9 @@ def person_new():
     return render_template('person_form.html', person=None)
 
 
-@app.route('/person/<int:person_id>')
-@login_required
-def person_detail(person_id):
+def _get_relationships_and_people(person_id):
+    """Return (relationships, all_people) for a given person."""
     db = get_db()
-    person = db.execute("SELECT * FROM person WHERE id = ?", (person_id,)).fetchone()
-    if not person:
-        db.close()
-        flash('Person not found.', 'error')
-        return redirect(url_for('person_list'))
-
-    # Get relationships
     relationships = db.execute("""
         SELECT r.*,
             p1.first_name AS p1_first, p1.last_name AS p1_last,
@@ -157,13 +149,38 @@ def person_detail(person_id):
         WHERE r.person1_id = ? OR r.person2_id = ?
         ORDER BY r.rel_type
     """, (person_id, person_id)).fetchall()
-
-    # Get all people for the "add relationship" dropdown (exclude self)
     all_people = db.execute(
         "SELECT id, first_name, last_name FROM person WHERE id != ? ORDER BY last_name, first_name",
         (person_id,),
     ).fetchall()
     db.close()
+    return relationships, all_people
+
+
+def _rel_display_label(rel_type, person1_id, current_person_id):
+    """Return the human-readable label for a relationship from the current person's perspective."""
+    if rel_type == 'parent_child':
+        return 'Parent' if person1_id == current_person_id else 'Child'
+    elif rel_type == 'adopted_parent_child':
+        return 'Adoptive parent' if person1_id == current_person_id else 'Adopted by'
+    elif rel_type == 'spouse':
+        return 'Spouse'
+    elif rel_type == 'divorced':
+        return 'Former spouse'
+    return rel_type
+
+
+@app.route('/person/<int:person_id>')
+@login_required
+def person_detail(person_id):
+    db = get_db()
+    person = db.execute("SELECT * FROM person WHERE id = ?", (person_id,)).fetchone()
+    db.close()
+    if not person:
+        flash('Person not found.', 'error')
+        return redirect(url_for('person_list'))
+
+    relationships, all_people = _get_relationships_and_people(person_id)
 
     return render_template(
         'person_detail.html', person=person, relationships=relationships,
@@ -182,7 +199,9 @@ def person_edit(person_id):
         return redirect(url_for('person_list'))
     if request.method == 'POST':
         return _save_person(person_id)
-    return render_template('person_form.html', person=person)
+    relationships, all_people = _get_relationships_and_people(person_id)
+    return render_template('person_form.html', person=person,
+                           relationships=relationships, all_people=all_people)
 
 
 @app.route('/person/<int:person_id>/delete', methods=['POST'])
@@ -261,7 +280,7 @@ def _save_person(person_id):
     db.commit()
     db.close()
     flash('Person saved.', 'success')
-    return redirect(url_for('person_detail', person_id=person_id))
+    return redirect(url_for('person_edit', person_id=person_id))
 
 
 # --- Relationship routes ---
@@ -293,6 +312,7 @@ def relationship_add():
         # spouse, divorced — order by smaller id for consistency
         person1_id, person2_id = min(person_id, other_id), max(person_id, other_id)
 
+    wants_json = request.headers.get('Accept') == 'application/json'
     db = get_db()
     try:
         db.execute(
@@ -300,8 +320,23 @@ def relationship_add():
             (person1_id, person2_id, rel_type),
         )
         db.commit()
+        if wants_json:
+            rel_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+            other_id_val = person2_id if person1_id == person_id else person1_id
+            other = db.execute("SELECT first_name, last_name FROM person WHERE id = ?",
+                               (other_id_val,)).fetchone()
+            db.close()
+            return jsonify({
+                "ok": True, "rel_id": rel_id,
+                "label": _rel_display_label(rel_type, person1_id, person_id),
+                "person_name": f"{other['first_name']} {other['last_name']}",
+                "person_id": other_id_val,
+            })
         flash('Relationship added.', 'success')
     except db.IntegrityError:
+        if wants_json:
+            db.close()
+            return jsonify({"ok": False, "error": "Relationship already exists"}), 400
         flash('This relationship already exists.', 'error')
     db.close()
     return redirect(url_for('person_detail', person_id=person_id))
@@ -315,6 +350,8 @@ def relationship_delete(rel_id):
     db.execute("DELETE FROM relationship WHERE id = ?", (rel_id,))
     db.commit()
     db.close()
+    if request.headers.get('Accept') == 'application/json':
+        return jsonify({"ok": True})
     flash('Relationship removed.', 'success')
     return redirect(url_for('person_detail', person_id=person_id))
 
