@@ -192,8 +192,10 @@
       var pathEl = edgeLayer.append("path")
         .attr("class", "link")
         .attr("fill", "none")
-        .attr("stroke", "rgba(92, 184, 120, 0.3)")
-        .attr("stroke-width", 1.5);
+        .attr("stroke", "#c4b898")
+        .attr("stroke-width", 3)
+        .attr("stroke-opacity", 0.6)
+        .attr("stroke-linecap", "round");
 
       var edge = { type: "parent-child", from: fromId, to: childId, el: pathEl };
       edges.push(edge);
