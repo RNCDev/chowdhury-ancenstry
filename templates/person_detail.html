@@ -5,37 +5,35 @@
 {% block title %}{{ person.first_name }} {{ person.last_name }} — {{ current_family.name }}{% endblock %}
 
 {% block content %}
-<div class="detail-header">
-    <div>
-        <h2 class="page-title">
-            {{ person.first_name }}{% if person.middle_name %} {{ person.middle_name }}{% endif %} {{ person.last_name }}
-            {% if person.status == 'stub' %}<span class="badge-pending">pending</span>{% endif %}
-        </h2>
-        {% if person.birth_name_first or person.birth_name_last %}
-        <p class="detail-birth-name">née {{ person.birth_name_first or person.first_name }} {{ person.birth_name_last or person.last_name }}</p>
-        {% endif %}
-    </div>
-    <div class="detail-header-actions">
-        <a href="{{ url_for('person_edit', fid=fid, person_id=person.id) }}" class="btn-primary-sm">Edit</a>
-        {% if can_invite %}
-        <form method="post" action="{{ url_for('invite_person', fid=fid, person_id=person.id) }}">
-            {{ csrf_field }}
-            <button type="submit" class="btn-secondary">Invite</button>
-        </form>
-        {% endif %}
-        {% if is_admin %}
-        <form method="post" action="{{ url_for('person_delete', fid=fid, person_id=person.id) }}">
-            {{ csrf_field }}
-            <button type="submit" class="btn-outline-danger" onclick="return confirm('Delete this person?')">Delete</button>
-        </form>
-        {% endif %}
-    </div>
-</div>
+<h2 class="page-title">
+    {{ person.first_name }}{% if person.middle_name %} {{ person.middle_name }}{% endif %} {{ person.last_name }}
+    {% if person.status == 'stub' %}<span class="badge-pending">pending</span>{% endif %}
+</h2>
+{% if person.birth_name_first or person.birth_name_last %}
+<p class="detail-birth-name">née {{ person.birth_name_first or person.first_name }} {{ person.birth_name_last or person.last_name }}</p>
+{% endif %}
 
 <div class="form-card">
-    <div class="form-tabs">
-        <button type="button" class="form-tab active" data-detail-tab="info">Details</button>
-        <button type="button" class="form-tab" data-detail-tab="relationships">Relationships</button>
+    <div class="detail-card-header">
+        <div class="form-tabs">
+            <button type="button" class="form-tab active" data-detail-tab="info">Details</button>
+            <button type="button" class="form-tab" data-detail-tab="relationships">Relationships</button>
+        </div>
+        <div class="detail-card-actions">
+            <a href="{{ url_for('person_edit', fid=fid, person_id=person.id) }}" class="btn-primary-sm">Edit</a>
+            {% if can_invite %}
+            <form method="post" action="{{ url_for('invite_person', fid=fid, person_id=person.id) }}">
+                {{ csrf_field }}
+                <button type="submit" class="btn-secondary btn-sm">Invite</button>
+            </form>
+            {% endif %}
+            {% if is_admin %}
+            <form method="post" action="{{ url_for('person_delete', fid=fid, person_id=person.id) }}">
+                {{ csrf_field }}
+                <button type="submit" class="btn-outline-danger btn-sm" onclick="return confirm('Delete this person?')">Delete</button>
+            </form>
+            {% endif %}
+        </div>
     </div>
 
     <div class="detail-tab-info">
