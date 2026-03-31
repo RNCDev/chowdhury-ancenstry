@@ -811,101 +811,83 @@ button:hover, [type="submit"]:hover {
     color: var(--text-muted);
 }
 
-/* ── Person detail ── */
-.detail-name {
-    color: var(--text-primary);
-    font-weight: 700;
-    font-size: 1.5rem;
+/* ── Person detail (redesigned to match form-card style) ── */
+.detail-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-md);
+    margin-bottom: var(--space-md);
+    flex-wrap: wrap;
+}
+
+.detail-header .page-title {
     margin-bottom: var(--space-xs);
 }
 
 .detail-birth-name {
     color: var(--text-muted);
     font-style: italic;
-    margin-bottom: var(--space-lg);
+    margin-top: 0;
+    margin-bottom: 0;
 }
 
-.detail-layout {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-lg);
-}
-
-@media (max-width: 768px) { .detail-layout { grid-template-columns: 1fr; } }
-
-.detail-panel {
-    background: var(--bg-card);
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius-md);
-    padding: var(--space-lg);
-    box-shadow: var(--shadow-sm);
-}
-
-.detail-panel h3 {
-    color: var(--text-primary);
-    font-weight: 700;
-    margin-bottom: var(--space-md);
+.detail-header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    flex-shrink: 0;
+    flex-wrap: wrap;
 }
 
 .person-photo {
-    max-width: 180px;
-    margin-bottom: 0.75rem;
+    max-width: 160px;
+    margin-bottom: var(--space-md);
     border-radius: var(--radius-md);
 }
 
-.detail-panel dl {
-    margin-bottom: var(--space-md);
+.detail-info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-md) var(--space-lg);
 }
 
-.detail-panel dt {
+@media (max-width: 600px) { .detail-info-grid { grid-template-columns: 1fr; } }
+
+.detail-info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.detail-info-item-full {
+    grid-column: 1 / -1;
+}
+
+.detail-info-label {
     text-transform: uppercase;
     color: var(--text-muted);
     font-weight: 600;
     font-size: 0.8rem;
     letter-spacing: 0.04em;
-    margin-top: var(--space-md);
 }
 
-.detail-panel dt:first-child {
-    margin-top: 0;
-}
-
-.detail-panel dd {
+.detail-info-value {
     color: var(--text-body);
-    margin-top: var(--space-xs);
+    font-size: 1rem;
 }
 
-.detail-panel a {
+.detail-info-value a {
     color: var(--accent-link);
     text-decoration: none;
 }
 
-.detail-panel a:hover {
+.detail-info-value a:hover {
     text-decoration: underline;
 }
 
-.detail-actions {
-    display: flex;
-    gap: var(--space-sm);
-    margin-top: var(--space-md);
-}
-
-.detail-actions a[role="button"] {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.4rem 0.75rem;
-    background: var(--bg-card);
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius-sm);
-    color: var(--text-body);
-    text-decoration: none;
-    font-weight: 600;
-    font-size: 0.85rem;
-    transition: background 0.15s;
-}
-
-.detail-actions a[role="button"]:hover {
-    background: var(--bg-hover);
+.rel-list-view {
+    margin-bottom: var(--space-sm);
 }
 
 /* Relationships */
@@ -1109,7 +1091,6 @@ button:hover, [type="submit"]:hover {
 
 /* ── Utility: inner pages need top padding for back arrow clearance ── */
 .page-form main.container,
-.page-detail main.container,
 .page-list main.container,
 .page-dashboard main.container {
     padding-top: calc(var(--space-xl) + 24px);

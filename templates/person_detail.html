@@ -1,68 +1,89 @@
 {% extends "base.html" %}
 
-{% block body_class %}page-detail{% endblock %}
+{% block body_class %}page-form{% endblock %}
 
 {% block title %}{{ person.first_name }} {{ person.last_name }} — {{ current_family.name }}{% endblock %}
 
 {% block content %}
-<h2 class="detail-name">{{ person.first_name }}{% if person.middle_name %} {{ person.middle_name }}{% endif %} {{ person.last_name }}
-    {% if person.status == 'stub' %}<span class="badge-pending">pending</span>{% endif %}
-</h2>
-{% if person.birth_name_first or person.birth_name_last %}
-<p class="detail-birth-name">n&eacute;e {{ person.birth_name_first or person.first_name }} {{ person.birth_name_last or person.last_name }}</p>
-{% endif %}
+<div class="detail-header">
+    <div>
+        <h2 class="page-title">
+            {{ person.first_name }}{% if person.middle_name %} {{ person.middle_name }}{% endif %} {{ person.last_name }}
+            {% if person.status == 'stub' %}<span class="badge-pending">pending</span>{% endif %}
+        </h2>
+        {% if person.birth_name_first or person.birth_name_last %}
+        <p class="detail-birth-name">née {{ person.birth_name_first or person.first_name }} {{ person.birth_name_last or person.last_name }}</p>
+        {% endif %}
+    </div>
+    <div class="detail-header-actions">
+        <a href="{{ url_for('person_edit', fid=fid, person_id=person.id) }}" class="btn-primary-sm">Edit</a>
+        {% if can_invite %}
+        <form method="post" action="{{ url_for('invite_person', fid=fid, person_id=person.id) }}">
+            {{ csrf_field }}
+            <button type="submit" class="btn-secondary">Invite</button>
+        </form>
+        {% endif %}
+        {% if is_admin %}
+        <form method="post" action="{{ url_for('person_delete', fid=fid, person_id=person.id) }}">
+            {{ csrf_field }}
+            <button type="submit" class="btn-outline-danger" onclick="return confirm('Delete this person?')">Delete</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
 
-<div class="detail-layout">
-    <div class="detail-panel">
+<div class="form-card">
+    <div class="form-tabs">
+        <button type="button" class="form-tab active" data-detail-tab="info">Details</button>
+        <button type="button" class="form-tab" data-detail-tab="relationships">Relationships</button>
+    </div>
+
+    <div class="detail-tab-info">
         {% if person.photo_path %}
         <img src="{{ url_for('uploaded_file', filename=person.photo_path) }}" alt="Photo of {{ person.first_name }}" class="person-photo">
         {% endif %}
 
-        <dl>
+        {% if person.date_of_birth or person.place_of_birth or person.email or person.linkedin_url or person.notes %}
+        <div class="detail-info-grid">
             {% if person.date_of_birth %}
-            <dt>Date of Birth</dt>
-            <dd>{{ person.date_of_birth }}</dd>
+            <div class="detail-info-item">
+                <span class="detail-info-label">Date of Birth</span>
+                <span class="detail-info-value">{{ person.date_of_birth }}</span>
+            </div>
             {% endif %}
             {% if person.place_of_birth %}
-            <dt>Place of Birth</dt>
-            <dd>{{ person.place_of_birth }}</dd>
+            <div class="detail-info-item">
+                <span class="detail-info-label">Place of Birth</span>
+                <span class="detail-info-value">{{ person.place_of_birth }}</span>
+            </div>
             {% endif %}
             {% if person.email %}
-            <dt>Email</dt>
-            <dd><a href="mailto:{{ person.email }}">{{ person.email }}</a></dd>
+            <div class="detail-info-item">
+                <span class="detail-info-label">Email</span>
+                <span class="detail-info-value"><a href="mailto:{{ person.email }}">{{ person.email }}</a></span>
+            </div>
             {% endif %}
             {% if person.linkedin_url %}
-            <dt>LinkedIn</dt>
-            <dd><a href="{{ person.linkedin_url }}" target="_blank">Profile</a></dd>
+            <div class="detail-info-item">
+                <span class="detail-info-label">LinkedIn</span>
+                <span class="detail-info-value"><a href="{{ person.linkedin_url }}" target="_blank">View Profile</a></span>
+            </div>
             {% endif %}
             {% if person.notes %}
-            <dt>Notes</dt>
-            <dd>{{ person.notes }}</dd>
-            {% endif %}
-        </dl>
-
-        <div class="detail-actions">
-            <a href="{{ url_for('person_edit', fid=fid, person_id=person.id) }}" role="button">Edit</a>
-            {% if can_invite %}
-            <form method="post" action="{{ url_for('invite_person', fid=fid, person_id=person.id) }}">
-                {{ csrf_field }}
-                <button type="submit" class="btn-secondary btn-sm">Invite</button>
-            </form>
-            {% endif %}
-            {% if is_admin %}
-            <form method="post" action="{{ url_for('person_delete', fid=fid, person_id=person.id) }}">
-                {{ csrf_field }}
-                <button type="submit" class="btn-outline-danger btn-sm" onclick="return confirm('Delete this person?')">Delete</button>
-            </form>
+            <div class="detail-info-item detail-info-item-full">
+                <span class="detail-info-label">Notes</span>
+                <span class="detail-info-value">{{ person.notes }}</span>
+            </div>
             {% endif %}
         </div>
+        {% else %}
+        <p class="empty-state">No details recorded yet. <a href="{{ url_for('person_edit', fid=fid, person_id=person.id) }}">Add some</a>.</p>
+        {% endif %}
     </div>
 
-    <div class="detail-panel">
-        <h3>Relationships</h3>
-
+    <div class="detail-tab-relationships tab-content-hidden">
         {% if relationships %}
-        <div>
+        <div class="rel-list-view">
             {% for r in relationships %}
             <div class="rel-item">
                 <span class="rel-label">
@@ -70,10 +91,8 @@
                         {% if r.person1_id == person.id %}Child{% else %}Parent{% endif %}
                     {% elif r.rel_type == 'adopted_parent_child' %}
                         {% if r.person1_id == person.id %}Adopted child{% else %}Adoptive parent{% endif %}
-                    {% elif r.rel_type == 'spouse' %}
-                        Spouse
-                    {% elif r.rel_type == 'divorced' %}
-                        Former spouse
+                    {% elif r.rel_type == 'spouse' %}Spouse
+                    {% elif r.rel_type == 'divorced' %}Former spouse
                     {% endif %}
                 </span>
                 <span class="rel-person">
@@ -128,10 +147,30 @@
                         {% endfor %}
                     </select>
                 </div>
-                <button type="submit">Add Relationship</button>
+                <button type="submit" class="btn-mt">Add Relationship</button>
             </form>
         </div>
         {% endif %}
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    var tabs = document.querySelectorAll('.form-tab[data-detail-tab]');
+    var infoPane = document.querySelector('.detail-tab-info');
+    var relPane = document.querySelector('.detail-tab-relationships');
+    if (!tabs.length) return;
+    tabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+            tabs.forEach(function (t) { t.classList.remove('active'); });
+            tab.classList.add('active');
+            var isInfo = tab.dataset.detailTab === 'info';
+            infoPane.classList.toggle('tab-content-hidden', !isInfo);
+            relPane.classList.toggle('tab-content-hidden', isInfo);
+        });
+    });
+})();
+</script>
 {% endblock %}
