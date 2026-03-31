@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Invite Someone — {{ current_family.name }}{% endblock %}
+
+{% block body_class %}page-form{% endblock %}
+
+{% block content %}
+<h2 class="page-title">Add & Invite Someone</h2>
+<p class="text-muted" style="margin-bottom: var(--space-lg);">
+    Add a family member and send them an invite link to claim their profile.
+</p>
+
+<div class="form-card">
+    <form method="post">
+        <div class="form-section">
+            <div class="form-grid form-grid-2">
+                <label>
+                    First Name *
+                    <input type="text" name="first_name" value="{{ first_name }}" required autofocus>
+                </label>
+                <label>
+                    Last Name *
+                    <input type="text" name="last_name" value="{{ last_name }}" required>
+                </label>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <label>
+                Email
+                <input type="email" name="email" value="{{ email }}" placeholder="Optional — helps them recognize the invite">
+            </label>
+        </div>
+
+        <div class="form-section">
+            <label>Relationship</label>
+            <small class="field-hint" style="margin-bottom: var(--space-sm);">Optionally connect this person to someone already in the tree.</small>
+            <div class="form-grid form-grid-2">
+                <select name="rel_type">
+                    <option value="">None</option>
+                    <option value="parent">Parent of…</option>
+                    <option value="child">Child of…</option>
+                    <option value="spouse">Spouse of…</option>
+                </select>
+                <select name="rel_person_id">
+                    <option value="">Select person</option>
+                    {% for p in people %}
+                    <option value="{{ p.id }}">{{ p.first_name }} {{ p.last_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <button type="submit">Add & Send Invite</button>
+    </form>
+</div>
+{% endblock %}

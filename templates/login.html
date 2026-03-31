@@ -5,12 +5,8 @@ block content %}
 <canvas id="vine-canvas"></canvas>
 
 <div class="login-card">
-    <h2>{% if setup %}Set Up Password{% else %}Welcome Back{% endif %}</h2>
-    {% if setup %}
-    <p>Choose a password to protect your family tree.</p>
-    {% else %}
-    <p>Enter your password to continue.</p>
-    {% endif %}
+    <h2>Welcome Back</h2>
+    <p>Enter your credentials to continue.</p>
     {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
     {% for category, message in messages %}
@@ -19,22 +15,15 @@ block content %}
     {% endif %}
     {% endwith %}
     <form method="post">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" value="{{ username }}" required placeholder="Your username" autofocus>
+
         <label for="password">Password</label>
-        <input
-            type="password"
-            id="password"
-            name="password"
-            required
-            placeholder="{% if setup %}Choose a password{% else %}Enter password{% endif %}"
-            autofocus
-        />
-        {% if setup %}
-        <small>At least 4 characters.</small>
-        {% endif %}
-        <button type="submit">
-            {% if setup %}Set Password{% else %}Login{% endif %}
-        </button>
+        <input type="password" id="password" name="password" required placeholder="Your password">
+
+        <button type="submit">Login</button>
     </form>
+    <p class="login-alt">Don't have an account? <a href="{{ url_for('register') }}">Register</a></p>
 </div>
 {% endblock %}
 

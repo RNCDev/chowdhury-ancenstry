@@ -1,15 +1,15 @@
 {% extends "base.html" %}
 
-{% block title %}Family Tree — Chowdhury Family Tree{% endblock %}
+{% block title %}{{ current_family.name }} — Family Tree{% endblock %}
 
 {% block body_class %}page-tree{% endblock %}
 
 {% block content %}
 {% if people %}
-<div id="tree-container"></div>
+<div id="tree-container" data-family-id="{{ fid }}"></div>
 {% else %}
 <div class="empty-state tree-empty">
-    No people in the database yet. <a href="{{ url_for('person_new') }}">Add someone</a> to get started.
+    No people in this family yet. <a href="{{ url_for('person_new', fid=fid) }}">Add someone</a> to get started.
 </div>
 {% endif %}
 {% endblock %}

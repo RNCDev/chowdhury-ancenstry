@@ -23,9 +23,10 @@
   }
 
   // --- AJAX relationship management ---
-  var personId = document.querySelector('.form-card') &&
-                 document.querySelector('.form-card').dataset.personId;
-  if (!personId) return;
+  var formCard = document.querySelector('.form-card');
+  var personId = formCard && formCard.dataset.personId;
+  var familyId = formCard && formCard.dataset.familyId;
+  if (!personId || !familyId) return;
 
   var relList = document.getElementById('rel-list');
   var relEmpty = document.getElementById('rel-empty');
@@ -56,7 +57,7 @@
                  '&other_id=' + encodeURIComponent(otherId) +
                  '&rel_type=' + encodeURIComponent(relType);
 
-      fetch('/relationship/add', {
+      fetch('/family/' + familyId + '/relationship/add', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -81,7 +82,7 @@
         div.dataset.relId = d.rel_id;
         div.innerHTML =
           '<span class="rel-label">' + escapeHtml(d.label) + '</span>' +
-          '<span class="rel-person"><a href="/person/' + d.person_id + '">' +
+          '<span class="rel-person"><a href="/family/' + familyId + '/person/' + d.person_id + '">' +
           escapeHtml(d.person_name) + '</a></span>' +
           '<button type="button" class="btn-outline-danger btn-sm rel-remove-btn" ' +
           'data-rel-id="' + d.rel_id + '" data-person-id="' + personId + '">Remove</button>';
@@ -106,7 +107,7 @@
       var relPersonId = btn.dataset.personId;
       var row = btn.closest('.rel-item');
 
-      fetch('/relationship/' + relId + '/delete', {
+      fetch('/family/' + familyId + '/relationship/' + relId + '/delete', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',

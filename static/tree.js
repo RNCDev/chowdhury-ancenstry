@@ -3,6 +3,7 @@
   const container = document.getElementById("tree-container");
   if (!container) return;
 
+  const familyId = container.dataset.familyId;
   const width = container.clientWidth;
   const height = container.clientHeight;
 
@@ -90,7 +91,7 @@
   }
 
   function loadTree() {
-    d3.json("/api/tree").then((data) => {
+    d3.json("/family/" + familyId + "/api/tree").then((data) => {
       if (!data || !data.nodes || data.nodes.length === 0) {
         g.selectAll("*").remove();
         g.append("text")
@@ -368,7 +369,7 @@
         .on("end", function() {
           d3.select(this).style("cursor", "grab");
           if (!hasDragged) {
-            window.location.href = "/person/" + id + "/edit";
+            window.location.href = "/family/" + familyId + "/person/" + id + "/edit";
           }
         });
 

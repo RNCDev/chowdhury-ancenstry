@@ -1,0 +1,40 @@
+{% extends "base.html" %} {% block title %}Register — Family Tree{% endblock %} {%
+block body_class %}page-login{% endblock %} {%
+block content %}
+
+<canvas id="vine-canvas"></canvas>
+
+<div class="login-card">
+    <h2>Create Account</h2>
+    <p>Sign up to manage your family trees.</p>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    {% for category, message in messages %}
+    <div class="flash-{{ category }}">{{ message }}</div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
+    <form method="post">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" value="{{ username }}" required placeholder="Choose a username" autofocus>
+        <small>At least 3 characters.</small>
+
+        <label for="display_name">Display Name</label>
+        <input type="text" id="display_name" name="display_name" value="{{ display_name or '' }}" placeholder="Optional">
+
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required placeholder="Choose a password">
+        <small>At least 4 characters.</small>
+
+        <label for="confirm_password">Confirm Password</label>
+        <input type="password" id="confirm_password" name="confirm_password" required placeholder="Repeat password">
+
+        <button type="submit">Create Account</button>
+    </form>
+    <p class="login-alt">Already have an account? <a href="{{ url_for('login') }}">Log in</a></p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='vine.js') }}"></script>
+{% endblock %}

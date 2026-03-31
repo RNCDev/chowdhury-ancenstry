@@ -1,10 +1,32 @@
 {% extends "base.html" %}
-{% block title %}Settings — Family Tree{% endblock %}
+{% block title %}Account Settings — Family Tree{% endblock %}
 {% block body_class %}page-form{% endblock %}
 
 {% block content %}
-<h2 class="page-title">Settings</h2>
+<h2 class="page-title">Account Settings</h2>
 <div class="form-card">
-    <p style="color: var(--text-muted);">Settings coming soon.</p>
+    <form method="post">
+        <div class="form-section">
+            <label for="display_name">Display Name</label>
+            <input type="text" id="display_name" name="display_name"
+                   value="{{ current_user.display_name or '' }}" placeholder="Optional display name">
+        </div>
+
+        <div class="form-section form-section-secondary">
+            <h3 class="section-title" style="margin-bottom: var(--space-sm);">Change Password</h3>
+            <div class="form-grid form-grid-2">
+                <label>
+                    Current Password
+                    <input type="password" name="current_password" placeholder="Required to change password">
+                </label>
+                <label>
+                    New Password
+                    <input type="password" name="new_password" placeholder="Leave blank to keep current">
+                </label>
+            </div>
+        </div>
+
+        <button type="submit">Save Settings</button>
+    </form>
 </div>
 {% endblock %}

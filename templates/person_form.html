@@ -2,12 +2,12 @@
 
 {% block body_class %}page-form{% endblock %}
 
-{% block title %}{% if person and person.id is defined %}Edit Person{% else %}Add Person{% endif %} — Chowdhury Family Tree{% endblock %}
+{% block title %}{% if person and person.id is defined %}Edit Person{% else %}Add Person{% endif %} — {{ current_family.name }}{% endblock %}
 
 {% block content %}
 <h2 class="page-title">{% if person and person.id is defined %}Edit Person{% else %}Add Person{% endif %}</h2>
 
-<div class="form-card" {% if person and person.id is defined %}data-person-id="{{ person.id }}"{% endif %}>
+<div class="form-card" {% if person and person.id is defined %}data-person-id="{{ person.id }}" data-family-id="{{ fid }}"{% endif %}>
     <div class="form-tabs">
         <button type="button" class="form-tab active" data-tab="details">Details</button>
         <button type="button" class="form-tab" data-tab="relationships">Relationships</button>
@@ -90,8 +90,8 @@
             <button type="submit">Save</button>
         </form>
 
-        {% if person and person.id is defined %}
-        <form method="post" action="{{ url_for('person_delete', person_id=person.id) }}" class="form-delete">
+        {% if person and person.id is defined and is_admin %}
+        <form method="post" action="{{ url_for('person_delete', fid=fid, person_id=person.id) }}" class="form-delete">
             <button type="submit" class="btn-icon-danger" aria-label="Delete person" onclick="return confirm('Delete this person? This cannot be undone.')">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="3 6 5 6 21 6"/>
@@ -122,10 +122,12 @@
                         <span class="rel-person">
                             {% set other_id = r.person2_id if r.person1_id == person.id else r.person1_id %}
                             {% set other_name = (r.p2_first ~ ' ' ~ r.p2_last) if r.person1_id == person.id else (r.p1_first ~ ' ' ~ r.p1_last) %}
-                            <a href="{{ url_for('person_detail', person_id=other_id) }}">{{ other_name }}</a>
+                            <a href="{{ url_for('person_detail', fid=fid, person_id=other_id) }}">{{ other_name }}</a>
                         </span>
+                        {% if is_admin %}
                         <button type="button" class="btn-outline-danger btn-sm rel-remove-btn"
                                 data-rel-id="{{ r.id }}" data-person-id="{{ person.id }}">Remove</button>
+                        {% endif %}
                     </div>
                     {% endfor %}
                 {% endif %}
@@ -134,6 +136,7 @@
             <p class="tab-muted-message" id="rel-empty">No relationships yet.</p>
             {% endif %}
 
+            {% if is_admin %}
             <div class="add-rel-form">
                 <div class="add-rel-grid">
                     <select id="rel-type">
@@ -155,6 +158,7 @@
                 </div>
                 <div id="rel-error" class="rel-error"></div>
             </div>
+            {% endif %}
         {% else %}
             <p class="tab-muted-message">Save this person first to manage relationships.</p>
         {% endif %}

@@ -2,10 +2,12 @@
 
 {% block body_class %}page-detail{% endblock %}
 
-{% block title %}{{ person.first_name }} {{ person.last_name }} — Chowdhury Family Tree{% endblock %}
+{% block title %}{{ person.first_name }} {{ person.last_name }} — {{ current_family.name }}{% endblock %}
 
 {% block content %}
-<h2 class="detail-name">{{ person.first_name }}{% if person.middle_name %} {{ person.middle_name }}{% endif %} {{ person.last_name }}</h2>
+<h2 class="detail-name">{{ person.first_name }}{% if person.middle_name %} {{ person.middle_name }}{% endif %} {{ person.last_name }}
+    {% if person.status == 'stub' %}<span class="badge-pending">pending</span>{% endif %}
+</h2>
 {% if person.birth_name_first or person.birth_name_last %}
 <p class="detail-birth-name">n&eacute;e {{ person.birth_name_first or person.first_name }} {{ person.birth_name_last or person.last_name }}</p>
 {% endif %}
@@ -40,10 +42,17 @@
         </dl>
 
         <div class="detail-actions">
-            <a href="{{ url_for('person_edit', person_id=person.id) }}" role="button">Edit</a>
-            <form method="post" action="{{ url_for('person_delete', person_id=person.id) }}">
+            <a href="{{ url_for('person_edit', fid=fid, person_id=person.id) }}" role="button">Edit</a>
+            {% if can_invite %}
+            <form method="post" action="{{ url_for('invite_person', fid=fid, person_id=person.id) }}">
+                <button type="submit" class="btn-secondary btn-sm">Invite</button>
+            </form>
+            {% endif %}
+            {% if is_admin %}
+            <form method="post" action="{{ url_for('person_delete', fid=fid, person_id=person.id) }}">
                 <button type="submit" class="btn-outline-danger btn-sm" onclick="return confirm('Delete this person?')">Delete</button>
             </form>
+            {% endif %}
         </div>
     </div>
 
@@ -68,22 +77,24 @@
                 <span class="rel-person">
                     {% if r.rel_type in ('parent_child', 'adopted_parent_child') %}
                         {% if r.person1_id == person.id %}
-                            <a href="{{ url_for('person_detail', person_id=r.person2_id) }}">{{ r.p2_first }} {{ r.p2_last }}</a>
+                            <a href="{{ url_for('person_detail', fid=fid, person_id=r.person2_id) }}">{{ r.p2_first }} {{ r.p2_last }}</a>
                         {% else %}
-                            <a href="{{ url_for('person_detail', person_id=r.person1_id) }}">{{ r.p1_first }} {{ r.p1_last }}</a>
+                            <a href="{{ url_for('person_detail', fid=fid, person_id=r.person1_id) }}">{{ r.p1_first }} {{ r.p1_last }}</a>
                         {% endif %}
                     {% else %}
                         {% if r.person1_id == person.id %}
-                            <a href="{{ url_for('person_detail', person_id=r.person2_id) }}">{{ r.p2_first }} {{ r.p2_last }}</a>
+                            <a href="{{ url_for('person_detail', fid=fid, person_id=r.person2_id) }}">{{ r.p2_first }} {{ r.p2_last }}</a>
                         {% else %}
-                            <a href="{{ url_for('person_detail', person_id=r.person1_id) }}">{{ r.p1_first }} {{ r.p1_last }}</a>
+                            <a href="{{ url_for('person_detail', fid=fid, person_id=r.person1_id) }}">{{ r.p1_first }} {{ r.p1_last }}</a>
                         {% endif %}
                     {% endif %}
                 </span>
-                <form method="post" action="{{ url_for('relationship_delete', rel_id=r.id) }}">
+                {% if is_admin %}
+                <form method="post" action="{{ url_for('relationship_delete', fid=fid, rel_id=r.id) }}">
                     <input type="hidden" name="person_id" value="{{ person.id }}">
                     <button type="submit" class="btn-outline-danger btn-sm">Remove</button>
                 </form>
+                {% endif %}
             </div>
             {% endfor %}
         </div>
@@ -91,9 +102,10 @@
         <p class="empty-state">No relationships yet.</p>
         {% endif %}
 
+        {% if is_admin %}
         <div class="add-rel-form">
             <h4>Add Relationship</h4>
-            <form method="post" action="{{ url_for('relationship_add') }}">
+            <form method="post" action="{{ url_for('relationship_add', fid=fid) }}">
                 <input type="hidden" name="person_id" value="{{ person.id }}">
                 <div class="add-rel-grid">
                     <select name="rel_type" required>
@@ -115,6 +127,7 @@
                 <button type="submit">Add Relationship</button>
             </form>
         </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

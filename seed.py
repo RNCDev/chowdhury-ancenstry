@@ -1,4 +1,6 @@
-"""Seed the database with initial Chowdhury family data."""
+"""Seed the database with initial Chowdhury family data and an admin user."""
+
+from werkzeug.security import generate_password_hash
 
 from db import get_db, init_db
 
@@ -14,34 +16,47 @@ def seed():
         db.close()
         return
 
+    # Create admin user
+    cursor = db.execute(
+        "INSERT INTO user (username, password_hash, display_name) VALUES (?, ?, ?)",
+        ("admin", generate_password_hash("admin"), "Admin"),
+    )
+    admin_id = cursor.lastrowid
+
+    # Create family
+    cursor = db.execute("INSERT INTO family (name) VALUES (?)", ("Chowdhury",))
+    family_id = cursor.lastrowid
+
+    # Make admin a member
+    db.execute(
+        "INSERT INTO family_membership (user_id, family_id, role) VALUES (?, ?, 'admin')",
+        (admin_id, family_id),
+    )
+
     # Insert people
     people = [
-        ("Prodiptya", None, "Chowdhury", None, None, None, None, None, None, None),
-        ("Sangeeta", None, "Chowdhury", None, None, None, None, None, None, None),
-        ("Ritujoy", None, "Chowdhury", None, None, None, None, None, None, None),
-        ("Joseph", None, "Noreika", None, None, None, None, None, None, None),
-        ("Joanne", None, "Keane", None, None, None, None, None, None, None),
-        ("Sarah", "Elizabeth", "Norieka", None, None, None, None, None, None, None),
-        ("Livia", "Elizabeth", "Chowdhury", None, None, None, None, None, None, None),
+        ("Prodiptya", None, "Chowdhury"),
+        ("Sangeeta", None, "Chowdhury"),
+        ("Ritujoy", None, "Chowdhury"),
+        ("Joseph", None, "Noreika"),
+        ("Joanne", None, "Keane"),
+        ("Sarah", "Elizabeth", "Norieka"),
+        ("Livia", "Elizabeth", "Chowdhury"),
     ]
 
     ids = {}
-    for p in people:
+    for first, middle, last in people:
         cursor = db.execute(
-            """INSERT INTO person (first_name, middle_name, last_name, birth_name_first,
-                birth_name_last, date_of_birth, place_of_birth, email, linkedin_url, notes)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            p,
+            "INSERT INTO person (family_id, first_name, middle_name, last_name) VALUES (?, ?, ?, ?)",
+            (family_id, first, middle, last),
         )
-        ids[f"{p[0]} {p[2]}"] = cursor.lastrowid
+        ids[f"{first} {last}"] = cursor.lastrowid
 
     # Insert relationships
     relationships = [
-        # Spouses (person1_id < person2_id for consistency)
         (ids["Prodiptya Chowdhury"], ids["Sangeeta Chowdhury"], "spouse"),
         (ids["Joseph Noreika"], ids["Joanne Keane"], "spouse"),
         (ids["Ritujoy Chowdhury"], ids["Sarah Norieka"], "spouse"),
-        # Parent → Child
         (ids["Prodiptya Chowdhury"], ids["Ritujoy Chowdhury"], "parent_child"),
         (ids["Sangeeta Chowdhury"], ids["Ritujoy Chowdhury"], "parent_child"),
         (ids["Joseph Noreika"], ids["Sarah Norieka"], "parent_child"),
@@ -52,13 +67,13 @@ def seed():
 
     for person1_id, person2_id, rel_type in relationships:
         db.execute(
-            "INSERT INTO relationship (person1_id, person2_id, rel_type) VALUES (?, ?, ?)",
-            (person1_id, person2_id, rel_type),
+            "INSERT INTO relationship (family_id, person1_id, person2_id, rel_type) VALUES (?, ?, ?, ?)",
+            (family_id, person1_id, person2_id, rel_type),
         )
 
     db.commit()
     db.close()
-    print("Seeded 7 people and 9 relationships.")
+    print("Seeded 7 people, 9 relationships, 1 family, and admin user (admin/admin).")
 
 
 if __name__ == "__main__":

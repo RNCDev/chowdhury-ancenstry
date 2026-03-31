@@ -1,0 +1,77 @@
+{% extends "base.html" %} {% block title %}Join {{ invite.family_name }} — Family Tree{% endblock %} {%
+block body_class %}page-login{% endblock %} {%
+block content %}
+
+<canvas id="vine-canvas"></canvas>
+
+<div class="login-card invite-card">
+    <h2>You're Invited!</h2>
+    <p>Join the <strong>{{ invite.family_name }}</strong> family tree as <strong>{{ invite.first_name }} {{ invite.last_name }}</strong>.</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    {% for category, message in messages %}
+    <div class="flash-{{ category }}">{{ message }}</div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
+
+    <div class="invite-tabs">
+        <button type="button" class="form-tab active" data-invite-tab="register">New Account</button>
+        <button type="button" class="form-tab" data-invite-tab="login">Existing Account</button>
+    </div>
+
+    <div class="invite-tab-content" id="invite-register">
+        <form method="post">
+            <input type="hidden" name="action" value="register">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" required placeholder="Choose a username">
+            <small>At least 3 characters.</small>
+
+            <label for="display_name">Display Name</label>
+            <input type="text" id="display_name" name="display_name" placeholder="Optional">
+
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" required placeholder="Choose a password">
+            <small>At least 4 characters.</small>
+
+            <label for="confirm_password">Confirm Password</label>
+            <input type="password" id="confirm_password" name="confirm_password" required placeholder="Repeat password">
+
+            <button type="submit">Join & Create Account</button>
+        </form>
+    </div>
+
+    <div class="invite-tab-content" id="invite-login" style="display: none;">
+        <form method="post">
+            <input type="hidden" name="action" value="login">
+            <label for="login_username">Username</label>
+            <input type="text" id="login_username" name="login_username" required placeholder="Your username">
+
+            <label for="login_password">Password</label>
+            <input type="password" id="login_password" name="login_password" required placeholder="Your password">
+
+            <button type="submit">Join with Existing Account</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='vine.js') }}"></script>
+<script>
+(function () {
+    var tabs = document.querySelectorAll('[data-invite-tab]');
+    tabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+            tabs.forEach(function (t) { t.classList.remove('active'); });
+            tab.classList.add('active');
+            document.getElementById('invite-register').style.display =
+                tab.dataset.inviteTab === 'register' ? 'block' : 'none';
+            document.getElementById('invite-login').style.display =
+                tab.dataset.inviteTab === 'login' ? 'block' : 'none';
+        });
+    });
+})();
+</script>
+{% endblock %}

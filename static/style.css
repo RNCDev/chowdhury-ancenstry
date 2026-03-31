@@ -1013,7 +1013,12 @@ button:hover, [type="submit"]:hover {
     color: var(--text-body);
     font-weight: 600;
     font-size: 0.9rem;
+    margin-top: 1.1rem;
     margin-bottom: 0.35rem;
+}
+
+.login-card label:first-of-type {
+    margin-top: 0;
 }
 
 .login-card input {
@@ -1039,13 +1044,13 @@ button:hover, [type="submit"]:hover {
     display: block;
     color: var(--text-muted);
     font-size: 0.8rem;
-    margin-top: 0.35rem;
-    margin-bottom: 0.5rem;
+    margin-top: 0.3rem;
+    margin-bottom: 0;
 }
 
-.login-card button {
+.login-card button[type="submit"] {
     width: 100%;
-    margin-top: 1rem;
+    margin-top: 1.5rem;
     padding: 0.7rem 1.5rem;
     background: var(--accent);
     color: var(--bg-page);
@@ -1058,7 +1063,7 @@ button:hover, [type="submit"]:hover {
     transition: background 0.15s;
 }
 
-.login-card button:hover {
+.login-card button[type="submit"]:hover {
     background: var(--accent-hover);
 }
 
@@ -1088,6 +1093,125 @@ button:hover, [type="submit"]:hover {
 /* ── Utility: inner pages need top padding for back arrow clearance ── */
 .page-form main.container,
 .page-detail main.container,
-.page-list main.container {
+.page-list main.container,
+.page-dashboard main.container {
     padding-top: calc(var(--space-xl) + 24px);
 }
+
+/* ── Login alt link ── */
+.login-alt {
+    margin-top: 1.25rem;
+    margin-bottom: 0;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+.login-alt a {
+    color: var(--accent-link);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.login-alt a:hover {
+    text-decoration: underline;
+}
+
+/* ── Role badges ── */
+.role-badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 2px 8px;
+    border-radius: 20px;
+}
+
+.role-admin {
+    background: rgba(90, 77, 58, 0.12);
+    color: var(--text-primary);
+}
+
+.role-member {
+    background: rgba(74, 100, 65, 0.10);
+    color: var(--color-success);
+}
+
+/* ── Pending badge ── */
+.badge-pending {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 1px 6px;
+    border-radius: 20px;
+    background: rgba(180, 150, 40, 0.12);
+    color: #8b7520;
+    margin-left: var(--space-xs);
+    vertical-align: middle;
+}
+
+/* ── Section title (used in settings cards) ── */
+.section-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: var(--space-md);
+}
+
+/* ── Text muted utility ── */
+.text-muted {
+    color: var(--text-muted);
+}
+
+/* ── Dashboard primary button ── */
+.btn-primary-sm {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    background: var(--accent);
+    color: var(--bg-page);
+    border: 1px solid var(--accent-hover);
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.btn-primary-sm:hover {
+    background: var(--accent-hover);
+}
+
+/* ── Members list ── */
+.members-list .rel-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) 0;
+    border-bottom: 1px solid var(--border-default);
+}
+
+.members-list .rel-item:last-child {
+    border-bottom: none;
+}
+
+/* ── Invite card (wider for two-tab layout) ── */
+.invite-card {
+    max-width: 520px;
+}
+
+.invite-tabs {
+    display: inline-flex;
+    background: var(--bg-hover);
+    border-radius: 10px;
+    padding: 3px;
+    gap: 2px;
+    margin-bottom: var(--space-lg);
+}
+
+/* ── Dashboard back arrow hidden ── */
+.page-dashboard .back-arrow { display: none; }

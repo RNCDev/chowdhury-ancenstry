@@ -2,7 +2,7 @@
 
 {% block body_class %}page-list{% endblock %}
 
-{% block title %}People — Chowdhury Family Tree{% endblock %}
+{% block title %}People — {{ current_family.name }}{% endblock %}
 
 {% macro sort_link(field, label) %}
 {% set next_order = 'desc' if sort == field and order == 'asc' else 'asc' %}
@@ -41,9 +41,10 @@
 
 <div class="people-list">
     {% for p in people %}
-    <a href="{{ url_for('person_detail', person_id=p.id) }}" class="person-row">
+    <a href="{{ url_for('person_detail', fid=fid, person_id=p.id) }}" class="person-row">
         <div class="person-row-name">
             {{ p.first_name }}{% if p.middle_name %} {{ p.middle_name }}{% endif %} {{ p.last_name }}
+            {% if p.status == 'stub' %}<span class="badge-pending">pending</span>{% endif %}
         </div>
         <div class="person-row-details">
             {% if p.date_of_birth %}
@@ -63,9 +64,9 @@
 <div class="card">
     <div class="empty-state">
         {% if search %}
-            No results for "<strong>{{ search }}</strong>". <a href="{{ url_for('person_list') }}">Clear search</a>.
+            No results for "<strong>{{ search }}</strong>". <a href="{{ url_for('person_list', fid=fid) }}">Clear search</a>.
         {% else %}
-            No people yet. <a href="{{ url_for('person_new') }}">Add someone</a>.
+            No people yet. <a href="{{ url_for('person_new', fid=fid) }}">Add someone</a>.
         {% endif %}
     </div>
 </div>
