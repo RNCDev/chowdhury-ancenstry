@@ -10,6 +10,7 @@
 <div class="form-card">
     <h3 class="section-title">Family Name</h3>
     <form method="post">
+        {{ csrf_field }}
         <div class="form-section">
             <label for="name">Name</label>
             <input type="text" id="name" name="name" value="{{ current_family.name }}" required>
@@ -18,7 +19,7 @@
     </form>
 </div>
 
-<div class="form-card" style="margin-top: var(--space-lg);">
+<div class="form-card">
     <h3 class="section-title">Members</h3>
     {% if members %}
     <div class="members-list">
@@ -40,12 +41,13 @@
     {% endif %}
 </div>
 
-<div class="form-card" style="margin-top: var(--space-lg);">
+<div class="form-card">
     <h3 class="section-title">Invite Someone</h3>
-    <p class="text-muted" style="margin-bottom: var(--space-md); font-size: 0.9rem;">
+    <p class="form-hint">
         Create a person stub and generate a shareable invite link. The recipient will register and review their info.
     </p>
     <form method="post" action="{{ url_for('invite_create', fid=fid) }}">
+        {{ csrf_field }}
         <div class="form-grid form-grid-2">
             <label>
                 First Name *
@@ -56,20 +58,21 @@
                 <input type="text" name="last_name" required placeholder="Their last name">
             </label>
         </div>
-        <button type="submit" style="margin-top: var(--space-md);">Create Invite</button>
+        <button type="submit" class="btn-mt">Create Invite</button>
     </form>
 </div>
 
 {% if invites %}
-<div class="form-card" style="margin-top: var(--space-lg);">
+<div class="form-card">
     <h3 class="section-title">Pending Invites</h3>
     {% for inv in invites %}
     <div class="rel-item">
         <span class="rel-person">
             <strong>{{ inv.first_name }} {{ inv.last_name }}</strong>
-            <span class="text-muted" style="font-size: 0.85rem;"> — created by {{ inv.created_by_name }}</span>
+            <span class="text-muted"> — created by {{ inv.created_by_name }}</span>
         </span>
         <form method="post" action="{{ url_for('invite_revoke', fid=fid, invite_id=inv.id) }}">
+            {{ csrf_field }}
             <button type="submit" class="btn-outline-danger btn-sm"
                     onclick="return confirm('Revoke this invite?')">Revoke</button>
         </form>

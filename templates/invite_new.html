@@ -6,12 +6,13 @@
 
 {% block content %}
 <h2 class="page-title">Add & Invite Someone</h2>
-<p class="text-muted" style="margin-bottom: var(--space-lg);">
+<p class="form-hint">
     Add a family member and send them an invite link to claim their profile.
 </p>
 
 <div class="form-card">
     <form method="post">
+        {{ csrf_field }}
         <div class="form-section">
             <div class="form-grid form-grid-2">
                 <label>
@@ -34,7 +35,7 @@
 
         <div class="form-section">
             <label>Relationship</label>
-            <small class="field-hint" style="margin-bottom: var(--space-sm);">Optionally connect this person to someone already in the tree.</small>
+            <p class="form-hint">Optionally connect this person to someone already in the tree.</p>
             <div class="form-grid form-grid-2">
                 <select name="rel_type">
                     <option value="">None</option>

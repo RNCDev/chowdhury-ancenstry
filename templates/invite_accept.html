@@ -33,7 +33,7 @@ block content %}
 
             <label for="password">Password</label>
             <input type="password" id="password" name="password" required placeholder="Choose a password">
-            <small>At least 4 characters.</small>
+            <small>At least 8 characters.</small>
 
             <label for="confirm_password">Confirm Password</label>
             <input type="password" id="confirm_password" name="confirm_password" required placeholder="Repeat password">
@@ -42,7 +42,7 @@ block content %}
         </form>
     </div>
 
-    <div class="invite-tab-content" id="invite-login" style="display: none;">
+    <div class="invite-tab-content tab-content-hidden" id="invite-login">
         <form method="post">
             <input type="hidden" name="action" value="login">
             <label for="login_username">Username</label>
@@ -66,10 +66,9 @@ block content %}
         tab.addEventListener('click', function () {
             tabs.forEach(function (t) { t.classList.remove('active'); });
             tab.classList.add('active');
-            document.getElementById('invite-register').style.display =
-                tab.dataset.inviteTab === 'register' ? 'block' : 'none';
-            document.getElementById('invite-login').style.display =
-                tab.dataset.inviteTab === 'login' ? 'block' : 'none';
+            var isRegister = tab.dataset.inviteTab === 'register';
+            document.getElementById('invite-register').classList.toggle('tab-content-hidden', !isRegister);
+            document.getElementById('invite-login').classList.toggle('tab-content-hidden', isRegister);
         });
     });
 })();

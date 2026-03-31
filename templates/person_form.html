@@ -15,6 +15,7 @@
 
     <div class="tab-content-details">
         <form method="post" enctype="multipart/form-data">
+            {{ csrf_field }}
             <div class="form-section">
                 <div class="form-grid form-grid-3">
                     <label>
@@ -92,6 +93,7 @@
 
         {% if person and person.id is defined and is_admin %}
         <form method="post" action="{{ url_for('person_delete', fid=fid, person_id=person.id) }}" class="form-delete">
+            {{ csrf_field }}
             <button type="submit" class="btn-icon-danger" aria-label="Delete person" onclick="return confirm('Delete this person? This cannot be undone.')">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="3 6 5 6 21 6"/>
@@ -104,7 +106,7 @@
         {% endif %}
     </div>
 
-    <div class="tab-content-relationships" style="display: none;">
+    <div class="tab-content-relationships tab-content-hidden">
         {% if person and person.id is defined %}
             <div id="rel-list">
                 {% if relationships %}

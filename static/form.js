@@ -11,13 +11,9 @@
       tab.addEventListener('click', function () {
         tabs.forEach(function (t) { t.classList.remove('active'); });
         tab.classList.add('active');
-        if (tab.dataset.tab === 'details') {
-          detailsPane.style.display = 'block';
-          relPane.style.display = 'none';
-        } else {
-          detailsPane.style.display = 'none';
-          relPane.style.display = 'block';
-        }
+        var isDetails = tab.dataset.tab === 'details';
+        detailsPane.classList.toggle('tab-content-hidden', !isDetails);
+        relPane.classList.toggle('tab-content-hidden', isDetails);
       });
     });
   }
@@ -27,6 +23,8 @@
   var personId = formCard && formCard.dataset.personId;
   var familyId = formCard && formCard.dataset.familyId;
   if (!personId || !familyId) return;
+
+  var csrfToken = (document.querySelector('input[name="csrf_token"]') || {}).value || '';
 
   var relList = document.getElementById('rel-list');
   var relEmpty = document.getElementById('rel-empty');
@@ -61,7 +59,8 @@
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          'X-CSRF-Token': csrfToken
         },
         body: body
       })
@@ -75,7 +74,7 @@
         }
         var d = result.data;
         // Hide empty message
-        if (relEmpty) relEmpty.style.display = 'none';
+        if (relEmpty) relEmpty.classList.add('tab-content-hidden');
         // Build new row
         var div = document.createElement('div');
         div.className = 'rel-item rel-item-enter';
@@ -111,7 +110,8 @@
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          'X-CSRF-Token': csrfToken
         },
         body: 'person_id=' + encodeURIComponent(relPersonId)
       })
@@ -123,7 +123,7 @@
             row.remove();
             // Show empty message if no items left
             if (relList.querySelectorAll('.rel-item').length === 0 && relEmpty) {
-              relEmpty.style.display = 'block';
+              relEmpty.classList.remove('tab-content-hidden');
             }
           });
         }

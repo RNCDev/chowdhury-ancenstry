@@ -11,11 +11,12 @@ from flask import (
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
-from db import get_db, init_db
+from db import DATABASE, close_db, get_db, init_db
 
 app = Flask(__name__)
+app.teardown_appcontext(close_db)
 
-APP_VERSION = "0.9.1"
+APP_VERSION = "0.9.2"
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
@@ -24,8 +25,12 @@ app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5MB
 
 
 def _ensure_secret_key():
-    """Load or generate the Flask secret key from the database."""
-    db = get_db()
+    """Load or generate the Flask secret key from the database.
+    Called at module load time (outside request context), so uses a direct connection.
+    """
+    import sqlite3 as _sqlite3
+    db = _sqlite3.connect(DATABASE)
+    db.row_factory = _sqlite3.Row
     row = db.execute("SELECT value FROM app_config WHERE key = 'secret_key'").fetchone()
     if row:
         app.secret_key = row['value']
@@ -34,7 +39,6 @@ def _ensure_secret_key():
         db.execute("INSERT INTO app_config (key, value) VALUES ('secret_key', ?)", (key,))
         db.commit()
         app.secret_key = key
-    db.close()
 
 
 def _allowed_file(filename):
@@ -50,7 +54,6 @@ def login_required(f):
             return redirect(url_for('login'))
         db = get_db()
         g.user = db.execute("SELECT * FROM user WHERE id = ?", (session['user_id'],)).fetchone()
-        db.close()
         if not g.user:
             session.clear()
             return redirect(url_for('login'))
@@ -68,13 +71,11 @@ def family_access_required(role=None):
             db = get_db()
             g.family = db.execute("SELECT * FROM family WHERE id = ?", (fid,)).fetchone()
             if not g.family:
-                db.close()
                 abort(404)
             g.membership = db.execute(
                 "SELECT * FROM family_membership WHERE user_id = ? AND family_id = ?",
                 (session['user_id'], fid),
             ).fetchone()
-            db.close()
             if not g.membership:
                 abort(403)
             if role == 'admin' and g.membership['role'] != 'admin':
@@ -87,12 +88,37 @@ def family_access_required(role=None):
 
 @app.context_processor
 def inject_globals():
+    from markupsafe import Markup
+    csrf = session.get('csrf_token', '')
+    csrf_field = Markup(f'<input type="hidden" name="csrf_token" value="{csrf}">')
     return {
         'app_version': APP_VERSION,
         'current_user': g.get('user'),
         'current_family': g.get('family'),
         'is_admin': g.get('is_admin', False),
+        'csrf_field': csrf_field,
     }
+
+
+# --- CSRF protection ---
+
+# Routes excluded from CSRF check (no session yet, or external token-based flow)
+_CSRF_EXEMPT = {'/login', '/register'}
+
+@app.before_request
+def csrf_protect():
+    """Ensure a CSRF token exists in the session and validate it on POST."""
+    if 'csrf_token' not in session:
+        session['csrf_token'] = secrets.token_hex(32)
+
+    if request.method == 'POST':
+        # Exempt login/register (no session when first submitting) and invite accept (token-based)
+        path = request.path
+        if path in _CSRF_EXEMPT or path.startswith('/invite/'):
+            return
+        token = request.form.get('csrf_token') or request.headers.get('X-CSRF-Token')
+        if not token or token != session.get('csrf_token'):
+            abort(403)
 
 
 def _audit(db, action, entity_type, entity_id, description, family_id=None):
@@ -118,8 +144,8 @@ def register():
         if not username or len(username) < 3:
             flash('Username must be at least 3 characters.', 'error')
             return render_template('register.html', username=username, display_name=display_name)
-        if len(password) < 4:
-            flash('Password must be at least 4 characters.', 'error')
+        if len(password) < 8:
+            flash('Password must be at least 8 characters.', 'error')
             return render_template('register.html', username=username, display_name=display_name)
         if password != confirm:
             flash('Passwords do not match.', 'error')
@@ -128,7 +154,6 @@ def register():
         db = get_db()
         existing = db.execute("SELECT id FROM user WHERE username = ?", (username,)).fetchone()
         if existing:
-            db.close()
             flash('Username already taken.', 'error')
             return render_template('register.html', username=username, display_name=display_name)
 
@@ -138,7 +163,6 @@ def register():
         )
         db.commit()
         user_id = cursor.lastrowid
-        db.close()
         session['user_id'] = user_id
         flash('Account created!', 'success')
         return redirect(url_for('dashboard'))
@@ -154,7 +178,6 @@ def login():
         password = request.form.get('password', '')
         db = get_db()
         user = db.execute("SELECT * FROM user WHERE username = ?", (username,)).fetchone()
-        db.close()
         if user and check_password_hash(user['password_hash'], password):
             session['user_id'] = user['id']
             return redirect(url_for('dashboard'))
@@ -182,7 +205,6 @@ def dashboard():
         WHERE fm.user_id = ?
         ORDER BY f.name
     """, (session['user_id'],)).fetchall()
-    db.close()
     return render_template('dashboard.html', families=families)
 
 
@@ -202,7 +224,6 @@ def family_new():
             (session['user_id'], family_id),
         )
         db.commit()
-        db.close()
         flash(f'Family "{name}" created!', 'success')
         return redirect(url_for('family_tree', fid=family_id))
     return render_template('family_new.html', name='')
@@ -221,12 +242,10 @@ def settings():
         db = get_db()
         if new_password:
             if not check_password_hash(g.user['password_hash'], current_password):
-                db.close()
                 flash('Current password is incorrect.', 'error')
                 return render_template('settings.html')
-            if len(new_password) < 4:
-                db.close()
-                flash('New password must be at least 4 characters.', 'error')
+            if len(new_password) < 8:
+                flash('New password must be at least 8 characters.', 'error')
                 return render_template('settings.html')
             db.execute("UPDATE user SET password_hash = ?, display_name = ? WHERE id = ?",
                        (generate_password_hash(new_password), display_name, session['user_id']))
@@ -234,10 +253,19 @@ def settings():
             db.execute("UPDATE user SET display_name = ? WHERE id = ?",
                        (display_name, session['user_id']))
         db.commit()
-        db.close()
         flash('Settings saved.', 'success')
         return redirect(url_for('settings'))
-    return render_template('settings.html')
+
+    db = get_db()
+    invites_created = db.execute("""
+        SELECT it.*, p.first_name, p.last_name, f.name AS family_name
+        FROM invite_token it
+        JOIN person p ON p.id = it.person_id
+        JOIN family f ON f.id = it.family_id
+        WHERE it.created_by = ?
+        ORDER BY it.created_at DESC
+    """, (session['user_id'],)).fetchall()
+    return render_template('settings.html', invites_created=invites_created)
 
 
 # --- Family-scoped routes ---
@@ -250,7 +278,6 @@ def settings():
 def family_tree(fid):
     db = get_db()
     has_people = db.execute("SELECT 1 FROM person WHERE family_id = ? LIMIT 1", (fid,)).fetchone() is not None
-    db.close()
     return render_template('tree.html', people=has_people, fid=fid)
 
 
@@ -262,7 +289,6 @@ def api_tree(fid):
     people = {row['id']: dict(row) for row in db.execute(
         "SELECT * FROM person WHERE family_id = ?", (fid,)).fetchall()}
     rels = db.execute("SELECT * FROM relationship WHERE family_id = ?", (fid,)).fetchall()
-    db.close()
 
     if not people:
         return jsonify(None)
@@ -323,7 +349,6 @@ def api_history(fid):
            ORDER BY al.id DESC LIMIT 200""",
         (fid,),
     ).fetchall()
-    db.close()
     result = []
     for r in rows:
         entry = dict(r)
@@ -368,7 +393,6 @@ def person_list(fid):
         people = db.execute(query, (fid, like, like, like, like, like, like, like)).fetchall()
     else:
         people = db.execute(f"SELECT * FROM person WHERE family_id = ? {order_sql}", (fid,)).fetchall()
-    db.close()
     return render_template('person_list.html', people=people, search=search,
                            sort=sort, order=order, fid=fid)
 
@@ -392,7 +416,6 @@ def invite_new(fid):
         "SELECT id, first_name, last_name FROM person WHERE family_id = ? ORDER BY last_name, first_name",
         (fid,),
     ).fetchall()
-    db.close()
 
     if request.method == 'POST':
         first_name = request.form.get('first_name', '').strip()
@@ -443,11 +466,10 @@ def invite_new(fid):
         full_name = f"{first_name} {last_name}"
         _audit(db, 'add', 'person', person_id, f"Added and invited {full_name}", family_id=fid)
         db.commit()
-        db.close()
 
         invite_url = url_for('invite_accept', token=token, _external=True)
         flash(f'Invite link for {full_name}: {invite_url}', 'success')
-        return redirect(url_for('person_detail', fid=fid, person_id=person_id))
+        return redirect(url_for('settings'))
 
     return render_template('invite_new.html', fid=fid, people=people,
                            first_name='', last_name='', email='')
@@ -470,7 +492,6 @@ def _get_relationships_and_people(fid, person_id):
         "SELECT id, first_name, last_name FROM person WHERE id != ? AND family_id = ? ORDER BY last_name, first_name",
         (person_id, fid),
     ).fetchall()
-    db.close()
     return relationships, all_people
 
 
@@ -492,7 +513,6 @@ def _person_is_linked(person_id):
     row = db.execute(
         "SELECT id FROM family_membership WHERE person_id = ?", (person_id,)
     ).fetchone()
-    db.close()
     return row is not None
 
 
@@ -502,7 +522,6 @@ def _person_is_linked(person_id):
 def person_detail(fid, person_id):
     db = get_db()
     person = db.execute("SELECT * FROM person WHERE id = ? AND family_id = ?", (person_id, fid)).fetchone()
-    db.close()
     if not person:
         flash('Person not found.', 'error')
         return redirect(url_for('person_list', fid=fid))
@@ -531,7 +550,6 @@ def person_edit(fid, person_id):
         abort(403)
     db = get_db()
     person = db.execute("SELECT * FROM person WHERE id = ? AND family_id = ?", (person_id, fid)).fetchone()
-    db.close()
     if not person:
         flash('Person not found.', 'error')
         return redirect(url_for('person_list', fid=fid))
@@ -553,7 +571,6 @@ def person_delete(fid, person_id):
     _audit(db, 'delete', 'person', person_id, f"Deleted {name}", family_id=fid)
     db.execute("DELETE FROM person WHERE id = ? AND family_id = ?", (person_id, fid))
     db.commit()
-    db.close()
     flash('Person deleted.', 'success')
     return redirect(url_for('person_list', fid=fid))
 
@@ -622,7 +639,6 @@ def _save_person(fid, person_id):
             )
         _audit(db, 'edit', 'person', person_id, f"Edited {full_name}", family_id=fid)
     db.commit()
-    db.close()
     flash('Person saved.', 'success')
     return redirect(url_for('person_edit', fid=fid, person_id=person_id))
 
@@ -671,7 +687,6 @@ def relationship_add(fid):
         if wants_json:
             other = db.execute("SELECT first_name, last_name FROM person WHERE id = ?",
                                (other_id_val,)).fetchone()
-            db.close()
             return jsonify({
                 "ok": True, "rel_id": rel_id,
                 "label": _rel_display_label(rel_type, person1_id, person_id),
@@ -681,10 +696,8 @@ def relationship_add(fid):
         flash('Relationship added.', 'success')
     except db.IntegrityError:
         if wants_json:
-            db.close()
             return jsonify({"ok": False, "error": "Relationship already exists"}), 400
         flash('This relationship already exists.', 'error')
-    db.close()
     return redirect(url_for('person_detail', fid=fid, person_id=person_id))
 
 
@@ -707,7 +720,6 @@ def relationship_delete(fid, rel_id):
                family_id=fid)
     db.execute("DELETE FROM relationship WHERE id = ? AND family_id = ?", (rel_id, fid))
     db.commit()
-    db.close()
     if request.headers.get('Accept') == 'application/json':
         return jsonify({"ok": True})
     flash('Relationship removed.', 'success')
@@ -727,7 +739,6 @@ def family_settings(fid):
             db.execute("UPDATE family SET name = ? WHERE id = ?", (name, fid))
             db.commit()
             flash('Family name updated.', 'success')
-        db.close()
         return redirect(url_for('family_settings', fid=fid))
 
     members = db.execute("""
@@ -747,7 +758,6 @@ def family_settings(fid):
         WHERE it.family_id = ? AND it.accepted_at IS NULL
         ORDER BY it.created_at DESC
     """, (fid,)).fetchall()
-    db.close()
     return render_template('family_settings.html', fid=fid, members=members, invites=invites)
 
 
@@ -777,7 +787,6 @@ def invite_create(fid):
     )
     _audit(db, 'add', 'person', person_id, f"Created invite stub for {first_name} {last_name}", family_id=fid)
     db.commit()
-    db.close()
 
     invite_url = url_for('invite_accept', token=token, _external=True)
     flash(f'Invite created! Share this link: {invite_url}', 'success')
@@ -792,13 +801,11 @@ def invite_person(fid, person_id):
     db = get_db()
     person = db.execute("SELECT * FROM person WHERE id = ? AND family_id = ?", (person_id, fid)).fetchone()
     if not person:
-        db.close()
         abort(404)
 
     # Check not already linked
     linked = db.execute("SELECT id FROM family_membership WHERE person_id = ?", (person_id,)).fetchone()
     if linked:
-        db.close()
         flash('This person already has an account.', 'error')
         return redirect(url_for('person_detail', fid=fid, person_id=person_id))
 
@@ -807,7 +814,6 @@ def invite_person(fid, person_id):
         "SELECT id FROM invite_token WHERE person_id = ? AND accepted_at IS NULL", (person_id,)
     ).fetchone()
     if pending:
-        db.close()
         flash('There is already a pending invite for this person.', 'error')
         return redirect(url_for('person_detail', fid=fid, person_id=person_id))
 
@@ -820,11 +826,10 @@ def invite_person(fid, person_id):
     name = f"{person['first_name']} {person['last_name']}"
     _audit(db, 'add', 'relationship', None, f"Created invite for {name}", family_id=fid)
     db.commit()
-    db.close()
 
     invite_url = url_for('invite_accept', token=token, _external=True)
     flash(f'Invite link for {name}: {invite_url}', 'success')
-    return redirect(url_for('person_detail', fid=fid, person_id=person_id))
+    return redirect(url_for('settings'))
 
 
 @app.route('/family/<int:fid>/invite/<int:invite_id>/revoke', methods=['POST'])
@@ -838,7 +843,6 @@ def invite_revoke(fid, invite_id):
         db.execute("DELETE FROM invite_token WHERE id = ?", (invite_id,))
         db.commit()
         flash('Invite revoked.', 'success')
-    db.close()
     return redirect(url_for('family_settings', fid=fid))
 
 
@@ -855,18 +859,15 @@ def invite_accept(token):
     """, (token,)).fetchone()
 
     if not invite:
-        db.close()
         flash('Invalid or expired invite link.', 'error')
         return redirect(url_for('login'))
 
     if invite['accepted_at']:
-        db.close()
         flash('This invite has already been accepted.', 'error')
         return redirect(url_for('login'))
 
     now = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
     if now > invite['expires_at']:
-        db.close()
         flash('This invite has expired. Please ask the admin for a new one.', 'error')
         return redirect(url_for('login'))
 
@@ -883,8 +884,8 @@ def invite_accept(token):
             if not username or len(username) < 3:
                 flash('Username must be at least 3 characters.', 'error')
                 return render_template('invite_accept.html', invite=invite, token=token)
-            if len(password) < 4:
-                flash('Password must be at least 4 characters.', 'error')
+            if len(password) < 8:
+                flash('Password must be at least 8 characters.', 'error')
                 return render_template('invite_accept.html', invite=invite, token=token)
             if password != confirm:
                 flash('Passwords do not match.', 'error')
@@ -934,12 +935,10 @@ def invite_accept(token):
                 (user_id, now, invite['id']),
             )
             db.commit()
-            db.close()
             session['user_id'] = user_id
             flash(f'Welcome to the {invite["family_name"]} family tree!', 'success')
             return redirect(url_for('family_tree', fid=invite['family_id']))
 
-    db.close()
     return render_template('invite_accept.html', invite=invite, token=token)
 
 

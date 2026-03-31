@@ -45,11 +45,13 @@
             <a href="{{ url_for('person_edit', fid=fid, person_id=person.id) }}" role="button">Edit</a>
             {% if can_invite %}
             <form method="post" action="{{ url_for('invite_person', fid=fid, person_id=person.id) }}">
+                {{ csrf_field }}
                 <button type="submit" class="btn-secondary btn-sm">Invite</button>
             </form>
             {% endif %}
             {% if is_admin %}
             <form method="post" action="{{ url_for('person_delete', fid=fid, person_id=person.id) }}">
+                {{ csrf_field }}
                 <button type="submit" class="btn-outline-danger btn-sm" onclick="return confirm('Delete this person?')">Delete</button>
             </form>
             {% endif %}
@@ -91,6 +93,7 @@
                 </span>
                 {% if is_admin %}
                 <form method="post" action="{{ url_for('relationship_delete', fid=fid, rel_id=r.id) }}">
+                    {{ csrf_field }}
                     <input type="hidden" name="person_id" value="{{ person.id }}">
                     <button type="submit" class="btn-outline-danger btn-sm">Remove</button>
                 </form>
@@ -106,6 +109,7 @@
         <div class="add-rel-form">
             <h4>Add Relationship</h4>
             <form method="post" action="{{ url_for('relationship_add', fid=fid) }}">
+                {{ csrf_field }}
                 <input type="hidden" name="person_id" value="{{ person.id }}">
                 <div class="add-rel-grid">
                     <select name="rel_type" required>

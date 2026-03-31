@@ -8,6 +8,7 @@
 <h2 class="page-title">Create a New Family</h2>
 <div class="form-card">
     <form method="post">
+        {{ csrf_field }}
         <div class="form-section">
             <label for="name">Family Name</label>
             <input type="text" id="name" name="name" value="{{ name }}" required placeholder="e.g. The Chowdhury Family" autofocus>
