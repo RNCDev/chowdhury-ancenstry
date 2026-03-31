@@ -246,6 +246,7 @@ main.container {
     font-size: 14px;
     font-weight: 600;
     fill: var(--text-primary);
+    font-family: Georgia, serif;
 }
 
 .person-year {
