@@ -520,19 +520,7 @@ def _person_is_linked(person_id):
 @login_required
 @family_access_required()
 def person_detail(fid, person_id):
-    db = get_db()
-    person = db.execute("SELECT * FROM person WHERE id = ? AND family_id = ?", (person_id, fid)).fetchone()
-    if not person:
-        flash('Person not found.', 'error')
-        return redirect(url_for('person_list', fid=fid))
-
-    relationships, all_people = _get_relationships_and_people(fid, person_id)
-    can_invite = not _person_is_linked(person_id)
-
-    return render_template(
-        'person_detail.html', person=person, relationships=relationships,
-        all_people=all_people, fid=fid, can_invite=can_invite,
-    )
+    return redirect(url_for('person_edit', fid=fid, person_id=person_id))
 
 
 def _can_edit_person(person_id):
@@ -698,7 +686,7 @@ def relationship_add(fid):
         if wants_json:
             return jsonify({"ok": False, "error": "Relationship already exists"}), 400
         flash('This relationship already exists.', 'error')
-    return redirect(url_for('person_detail', fid=fid, person_id=person_id))
+    return redirect(url_for('person_edit', fid=fid, person_id=person_id))
 
 
 @app.route('/family/<int:fid>/relationship/<int:rel_id>/delete', methods=['POST'])
@@ -723,7 +711,7 @@ def relationship_delete(fid, rel_id):
     if request.headers.get('Accept') == 'application/json':
         return jsonify({"ok": True})
     flash('Relationship removed.', 'success')
-    return redirect(url_for('person_detail', fid=fid, person_id=person_id))
+    return redirect(url_for('person_edit', fid=fid, person_id=person_id))
 
 
 # --- Family settings ---
@@ -807,7 +795,7 @@ def invite_person(fid, person_id):
     linked = db.execute("SELECT id FROM family_membership WHERE person_id = ?", (person_id,)).fetchone()
     if linked:
         flash('This person already has an account.', 'error')
-        return redirect(url_for('person_detail', fid=fid, person_id=person_id))
+        return redirect(url_for('person_edit', fid=fid, person_id=person_id))
 
     # Check no pending invite already
     pending = db.execute(
@@ -815,7 +803,7 @@ def invite_person(fid, person_id):
     ).fetchone()
     if pending:
         flash('There is already a pending invite for this person.', 'error')
-        return redirect(url_for('person_detail', fid=fid, person_id=person_id))
+        return redirect(url_for('person_edit', fid=fid, person_id=person_id))
 
     token = secrets.token_urlsafe(32)
     expires = (datetime.utcnow() + timedelta(days=30)).strftime('%Y-%m-%d %H:%M:%S')

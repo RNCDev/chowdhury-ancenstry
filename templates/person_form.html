@@ -124,7 +124,7 @@
                         <span class="rel-person">
                             {% set other_id = r.person2_id if r.person1_id == person.id else r.person1_id %}
                             {% set other_name = (r.p2_first ~ ' ' ~ r.p2_last) if r.person1_id == person.id else (r.p1_first ~ ' ' ~ r.p1_last) %}
-                            <a href="{{ url_for('person_detail', fid=fid, person_id=other_id) }}">{{ other_name }}</a>
+                            <a href="{{ url_for('person_edit', fid=fid, person_id=other_id) }}">{{ other_name }}</a>
                         </span>
                         {% if is_admin %}
                         <button type="button" class="btn-outline-danger btn-sm rel-remove-btn"

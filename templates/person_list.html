@@ -51,7 +51,7 @@
 
 <div class="people-list">
     {% for p in people %}
-    <a href="{{ url_for('person_detail', fid=fid, person_id=p.id) }}" class="person-row">
+    <a href="{{ url_for('person_edit', fid=fid, person_id=p.id) }}" class="person-row">
         <div class="person-row-name">
             {{ p.first_name }}{% if p.middle_name %} {{ p.middle_name }}{% endif %} {{ p.last_name }}
             {% if p.status == 'stub' %}<span class="badge-pending">pending</span>{% endif %}
