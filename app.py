@@ -16,7 +16,7 @@ from db import DATABASE, close_db, get_db, init_db
 app = Flask(__name__)
 app.teardown_appcontext(close_db)
 
-APP_VERSION = "0.9.3"
+APP_VERSION = "0.9.4"
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
@@ -735,8 +735,9 @@ def family_settings(fid):
         FROM family_membership fm
         JOIN user u ON u.id = fm.user_id
         LEFT JOIN person p ON p.id = fm.person_id
+        WHERE fm.family_id = ?
         ORDER BY fm.role, u.username
-    """).fetchall()
+    """, (fid,)).fetchall()
     invites = db.execute("""
         SELECT it.*, p.first_name, p.last_name,
                u.username AS created_by_name
