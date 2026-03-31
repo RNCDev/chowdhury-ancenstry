@@ -439,23 +439,26 @@ button:hover, [type="submit"]:hover {
 
 /* ── Form tabs ── */
 .form-tabs {
-    display: flex;
-    border-bottom: 1px solid var(--border-default);
-    margin-bottom: var(--space-md);
+    display: inline-flex;
+    background: var(--bg-hover);
+    border-radius: 10px;
+    padding: 3px;
+    gap: 2px;
+    margin-bottom: var(--space-lg);
 }
 
 .form-tab {
-    padding: var(--space-sm) var(--space-md);
+    padding: 6px 20px;
     background: transparent;
     border: none;
-    border-bottom: 2px solid transparent;
-    margin-bottom: -1px;
+    border-radius: 8px;
     color: var(--text-muted);
     font-family: inherit;
-    font-size: 0.95rem;
+    font-size: 0.875rem;
     font-weight: 500;
     cursor: pointer;
-    transition: color 0.15s, border-color 0.15s;
+    transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+    white-space: nowrap;
 }
 
 .form-tab:hover {
@@ -463,9 +466,10 @@ button:hover, [type="submit"]:hover {
 }
 
 .form-tab.active {
+    background: var(--bg-card);
     color: var(--text-primary);
     font-weight: 600;
-    border-bottom-color: var(--accent);
+    box-shadow: 0 1px 3px rgba(90,62,40,0.12);
 }
 
 /* ── Relationships tab (form page) ── */
