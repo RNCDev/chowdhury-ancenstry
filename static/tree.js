@@ -47,7 +47,7 @@
       <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="6" y1="12" x2="18" y2="12"/></svg>
     </button>
     <button id="zoom-reset" title="Reset view">
-      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="12" cy="12" r="3"/></svg>
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
     </button>
   `;
   container.style.position = "relative";
@@ -222,13 +222,13 @@
 
       nodeG.append("text")
         .attr("text-anchor", "middle")
-        .attr("dy", "-0.2em")
+        .attr("y", personData.birth_year ? -8 : 5)
         .attr("class", "person-name")
         .text(personData.name);
 
       nodeG.append("text")
         .attr("text-anchor", "middle")
-        .attr("dy", "1.2em")
+        .attr("y", 12)
         .attr("class", "person-year")
         .text(personData.birth_year ? "b. " + personData.birth_year : "");
 

@@ -91,6 +91,12 @@ def logout():
     return redirect(url_for('login'))
 
 
+@app.route('/settings')
+@login_required
+def settings():
+    return render_template('settings.html')
+
+
 # --- Person CRUD routes ---
 
 @app.route('/people')
