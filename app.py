@@ -12,6 +12,8 @@ from db import get_db, init_db
 
 app = Flask(__name__)
 
+APP_VERSION = "1.0.0"
+
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -50,6 +52,18 @@ def login_required(f):
 
 def _allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+@app.context_processor
+def inject_globals():
+    return {'app_version': APP_VERSION}
+
+
+def _audit(db, action, entity_type, entity_id, description):
+    db.execute(
+        "INSERT INTO audit_log (action, entity_type, entity_id, description) VALUES (?, ?, ?, ?)",
+        (action, entity_type, entity_id, description),
+    )
 
 
 # --- Auth routes ---
@@ -214,6 +228,9 @@ def person_edit(person_id):
 @login_required
 def person_delete(person_id):
     db = get_db()
+    person = db.execute("SELECT first_name, last_name FROM person WHERE id = ?", (person_id,)).fetchone()
+    name = f"{person['first_name']} {person['last_name']}" if person else f"#{person_id}"
+    _audit(db, 'delete', 'person', person_id, f"Deleted {name}")
     db.execute("DELETE FROM person WHERE id = ?", (person_id,))
     db.commit()
     db.close()
@@ -251,6 +268,7 @@ def _save_person(person_id):
         photo_path = filename
 
     db = get_db()
+    full_name = f"{data['first_name']} {data['last_name']}".strip()
     if person_id is None:
         cursor = db.execute(
             """INSERT INTO person (first_name, middle_name, last_name, birth_name_first,
@@ -262,6 +280,7 @@ def _save_person(person_id):
              photo_path),
         )
         person_id = cursor.lastrowid
+        _audit(db, 'add', 'person', person_id, f"Added {full_name}")
     else:
         if photo_path:
             db.execute(
@@ -283,6 +302,7 @@ def _save_person(person_id):
                  data['place_of_birth'], data['email'], data['linkedin_url'], data['notes'],
                  person_id),
             )
+        _audit(db, 'edit', 'person', person_id, f"Edited {full_name}")  # noqa
     db.commit()
     db.close()
     flash('Person saved.', 'success')
@@ -325,10 +345,16 @@ def relationship_add():
             "INSERT INTO relationship (person1_id, person2_id, rel_type) VALUES (?, ?, ?)",
             (person1_id, person2_id, rel_type),
         )
+        rel_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+        other_id_val = person2_id if person1_id == person_id else person1_id
+        p1 = db.execute("SELECT first_name, last_name FROM person WHERE id = ?", (person1_id,)).fetchone()
+        p2 = db.execute("SELECT first_name, last_name FROM person WHERE id = ?", (person2_id,)).fetchone()
+        p1_name = f"{p1['first_name']} {p1['last_name']}" if p1 else f"#{person1_id}"
+        p2_name = f"{p2['first_name']} {p2['last_name']}" if p2 else f"#{person2_id}"
+        label = _rel_display_label(rel_type, person1_id, person1_id)
+        _audit(db, 'add', 'relationship', rel_id, f"Added {rel_type.replace('_', ' ')}: {p1_name} → {p2_name}")
         db.commit()
         if wants_json:
-            rel_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
-            other_id_val = person2_id if person1_id == person_id else person1_id
             other = db.execute("SELECT first_name, last_name FROM person WHERE id = ?",
                                (other_id_val,)).fetchone()
             db.close()
@@ -353,6 +379,16 @@ def relationship_add():
 def relationship_delete(rel_id):
     person_id = int(request.form.get('person_id', 0))
     db = get_db()
+    rel = db.execute("""
+        SELECT r.rel_type, p1.first_name AS p1f, p1.last_name AS p1l,
+               p2.first_name AS p2f, p2.last_name AS p2l
+        FROM relationship r
+        JOIN person p1 ON r.person1_id = p1.id
+        JOIN person p2 ON r.person2_id = p2.id
+        WHERE r.id = ?""", (rel_id,)).fetchone()
+    if rel:
+        _audit(db, 'delete', 'relationship', rel_id,
+               f"Removed {rel['rel_type'].replace('_', ' ')}: {rel['p1f']} {rel['p1l']} → {rel['p2f']} {rel['p2l']}")
     db.execute("DELETE FROM relationship WHERE id = ?", (rel_id,))
     db.commit()
     db.close()
@@ -456,6 +492,17 @@ def tree():
     has_people = db.execute("SELECT 1 FROM person LIMIT 1").fetchone() is not None
     db.close()
     return render_template('tree.html', people=has_people)
+
+
+@app.route('/api/history')
+@login_required
+def api_history():
+    db = get_db()
+    rows = db.execute(
+        "SELECT action, entity_type, description, created_at FROM audit_log ORDER BY id DESC LIMIT 200"
+    ).fetchall()
+    db.close()
+    return jsonify([dict(r) for r in rows])
 
 
 # --- Photo serving ---

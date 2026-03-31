@@ -32,3 +32,12 @@ CREATE TABLE IF NOT EXISTS app_config (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    action TEXT NOT NULL CHECK (action IN ('add', 'edit', 'delete')),
+    entity_type TEXT NOT NULL CHECK (entity_type IN ('person', 'relationship')),
+    entity_id INTEGER,
+    description TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+);
