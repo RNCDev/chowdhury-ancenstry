@@ -56,9 +56,9 @@
             <div class="rel-item">
                 <span class="rel-label">
                     {% if r.rel_type == 'parent_child' %}
-                        {% if r.person1_id == person.id %}Parent{% else %}Child{% endif %}
+                        {% if r.person1_id == person.id %}Child{% else %}Parent{% endif %}
                     {% elif r.rel_type == 'adopted_parent_child' %}
-                        {% if r.person1_id == person.id %}Adoptive parent{% else %}Adopted by{% endif %}
+                        {% if r.person1_id == person.id %}Adopted child{% else %}Adoptive parent{% endif %}
                     {% elif r.rel_type == 'spouse' %}
                         Spouse
                     {% elif r.rel_type == 'divorced' %}

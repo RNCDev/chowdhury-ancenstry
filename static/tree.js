@@ -65,8 +65,8 @@
 
   const NODE_WIDTH = 190;
   const NODE_HEIGHT = 56;
-  const SPOUSE_GAP = 40;
-  const COUPLE_WIDTH = NODE_WIDTH * 2 + SPOUSE_GAP;
+  const H_GAP = 50;   // horizontal gap between sibling nodes
+  const V_GAP = 120;  // vertical gap between generations
 
   // Mutable positions keyed by id (person ids + synthetic union ids)
   var nodePositions = {};
@@ -75,24 +75,8 @@
   // Union nodes: keyed by union id, tracks { personId, spouseId, dotEl }
   var unionNodes = {};
 
-  function loadTree() {
-    d3.json("/api/tree").then((data) => {
-      if (!data || !data.root) {
-        g.selectAll("*").remove();
-        g.append("text")
-          .attr("x", width / 2)
-          .attr("y", height / 2)
-          .attr("text-anchor", "middle")
-          .attr("fill", "#8b7a5e")
-          .text("No family data yet. Add some people to get started!");
-        return;
-      }
-      renderTree(data.root);
-    });
-  }
-
-  function unionId(pid, sid) {
-    return "union_" + Math.min(pid, sid) + "_" + Math.max(pid, sid);
+  function unionId(p1, p2) {
+    return "union_" + Math.min(p1, p2) + "_" + Math.max(p1, p2);
   }
 
   function computeUnionPos(uid) {
@@ -105,89 +89,221 @@
     nodePositions[uid].y = (p1.y + p2.y) / 2;
   }
 
-  function renderTree(rootData) {
+  function loadTree() {
+    d3.json("/api/tree").then((data) => {
+      if (!data || !data.nodes || data.nodes.length === 0) {
+        g.selectAll("*").remove();
+        g.append("text")
+          .attr("x", width / 2)
+          .attr("y", height / 2)
+          .attr("text-anchor", "middle")
+          .attr("fill", "#8b7a5e")
+          .text("No family data yet. Add some people to get started!");
+        return;
+      }
+      renderTree(data);
+    });
+  }
+
+  function renderTree(data) {
     g.selectAll("*").remove();
     nodePositions = {};
     edges = [];
     unionNodes = {};
 
-    const root = d3.hierarchy(rootData, (d) => d.children);
-    const treeLayout = d3.tree().nodeSize([COUPLE_WIDTH + 40, 120]);
-    treeLayout(root);
+    var peopleById = {};
+    data.nodes.forEach(function(p) { peopleById[p.id] = p; });
 
-    const offsetX = width / 2 - root.x;
-    const offsetY = 80;
+    // Build parent lookup: child_id → [from_id, ...] (from_id may be a union uid or person id)
+    var parentsOf = {};   // child_id → from_id (string or int)
+    var childrenOf = {};  // from_id (string|int) → [child_id, ...]
+    data.edges.forEach(function(e) {
+      parentsOf[e.child] = e.from;
+      if (!childrenOf[e.from]) childrenOf[e.from] = [];
+      childrenOf[e.from].push(e.child);
+    });
 
+    // Build union lookup
+    var unionByUid = {};
+    data.unions.forEach(function(u) {
+      unionByUid[u.uid] = u;
+      unionNodes[u.uid] = { personId: u.p1, spouseId: u.p2 };
+    });
+
+    // Build spouse lookup: person_id → [spouse_id, ...]
+    var spousesOf = {};
+    data.unions.forEach(function(u) {
+      if (!spousesOf[u.p1]) spousesOf[u.p1] = [];
+      if (!spousesOf[u.p2]) spousesOf[u.p2] = [];
+      spousesOf[u.p1].push(u.p2);
+      spousesOf[u.p2].push(u.p1);
+    });
+
+    // --- Generational layout ---
+
+    // Step 1: assign generation to each person
+    // A person's generation = max(parent generations) + 1; parentless = 0
+    var gen = {};
+    var personIds = data.nodes.map(function(p) { return p.id; });
+
+    // We need to resolve generations respecting parent->child order.
+    // Use iterative relaxation (handles any DAG).
+    personIds.forEach(function(id) { gen[id] = 0; });
+
+    var changed = true;
+    var iters = 0;
+    while (changed && iters < 100) {
+      changed = false;
+      iters++;
+      data.edges.forEach(function(e) {
+        var fromId = e.from;
+        var childId = e.child;
+        // resolve parent generation: if from is a union, use the max of the two parents
+        var parentGen;
+        if (typeof fromId === 'string' && fromId.startsWith('union_')) {
+          var u = unionByUid[fromId];
+          parentGen = u ? Math.max(gen[u.p1] || 0, gen[u.p2] || 0) : 0;
+        } else {
+          parentGen = gen[fromId] || 0;
+        }
+        if ((gen[childId] || 0) <= parentGen) {
+          gen[childId] = parentGen + 1;
+          changed = true;
+        }
+      });
+    }
+
+    // Step 2: group people by generation
+    var byGen = {};
+    personIds.forEach(function(id) {
+      var g_ = gen[id] || 0;
+      if (!byGen[g_]) byGen[g_] = [];
+      byGen[g_].push(id);
+    });
+
+    // Step 3: order within each generation — sort by average parent x (computed iteratively)
+    // For gen 0, keep insertion order. For later gens, sort by parent position.
+    var sortedGens = Object.keys(byGen).map(Number).sort(function(a, b) { return a - b; });
+
+    // Step 4: assign x positions
+    // Strategy: for each generation, space nodes out. Married couples are placed adjacent.
+    // We'll place nodes left-to-right, skipping a slot for spouse adjacency.
+
+    var SLOT = NODE_WIDTH + H_GAP;
+
+    // Track which people have been x-positioned already (spouses placed inline)
+    var xAssigned = {};
+    var tempX = {};  // id → x (in slot units, before centering)
+
+    sortedGens.forEach(function(g_) {
+      var members = byGen[g_].slice();
+
+      // Sort members by their parents' x to reduce edge crossings
+      members.sort(function(a, b) {
+        var ax = _parentX(a);
+        var bx = _parentX(b);
+        return ax - bx;
+      });
+
+      // Assign slots, placing spouses adjacent
+      var slots = [];
+      var placed = {};
+      members.forEach(function(id) {
+        if (placed[id]) return;
+        slots.push(id);
+        placed[id] = true;
+        // If this person has a spouse in the same generation, place them next
+        (spousesOf[id] || []).forEach(function(sid) {
+          if (gen[sid] === g_ && !placed[sid]) {
+            slots.push(sid);
+            placed[sid] = true;
+          }
+        });
+      });
+
+      // Assign x
+      var startSlot = 0;
+      slots.forEach(function(id) {
+        tempX[id] = startSlot;
+        startSlot++;
+      });
+    });
+
+    function _parentX(id) {
+      var fromId = parentsOf[id];
+      if (!fromId) return 0;
+      if (typeof fromId === 'string' && fromId.startsWith('union_')) {
+        var u = unionByUid[fromId];
+        if (!u) return 0;
+        var x1 = tempX[u.p1] !== undefined ? tempX[u.p1] : 0;
+        var x2 = tempX[u.p2] !== undefined ? tempX[u.p2] : 0;
+        return (x1 + x2) / 2;
+      }
+      return tempX[fromId] !== undefined ? tempX[fromId] : 0;
+    }
+
+    // Convert slot positions to pixel positions, centering each generation
+    sortedGens.forEach(function(g_) {
+      var members = byGen[g_];
+      var slots = members.map(function(id) { return tempX[id]; });
+      var minSlot = Math.min.apply(null, slots);
+      var maxSlot = Math.max.apply(null, slots);
+      var totalWidth = (maxSlot - minSlot) * SLOT;
+      var startX = width / 2 - totalWidth / 2;
+
+      members.forEach(function(id) {
+        var px = startX + (tempX[id] - minSlot) * SLOT;
+        var py = 80 + g_ * V_GAP;
+        nodePositions[id] = { x: px, y: py };
+      });
+    });
+
+    // Position union dots
+    data.unions.forEach(function(u) {
+      var p1pos = nodePositions[u.p1];
+      var p2pos = nodePositions[u.p2];
+      if (!p1pos || !p2pos) return;
+      nodePositions[u.uid] = {
+        x: (p1pos.x + p2pos.x) / 2,
+        y: (p1pos.y + p2pos.y) / 2,
+      };
+    });
+
+    // --- Draw layers ---
     const edgeLayer = g.append("g").attr("class", "edge-layer");
     const unionLayer = g.append("g").attr("class", "union-layer");
     const nodeLayer = g.append("g").attr("class", "node-layer");
 
-    // First pass: compute positions for people and create union nodes
-    root.descendants().forEach((d) => {
-      var nx = d.x + offsetX;
-      var ny = d.y + offsetY;
-      nodePositions[d.data.id] = { x: nx, y: ny };
+    // Draw marriage lines: person1 → union dot → person2
+    data.unions.forEach(function(u) {
+      if (!nodePositions[u.p1] || !nodePositions[u.p2] || !nodePositions[u.uid]) return;
 
-      if (d.data.spouses && d.data.spouses.length > 0) {
-        d.data.spouses.forEach((spouse) => {
-          var sx = nx + NODE_WIDTH / 2 + SPOUSE_GAP + NODE_WIDTH / 2;
-          nodePositions[spouse.id] = { x: sx, y: ny };
+      var lineLeft = edgeLayer.append("line")
+        .attr("stroke", "rgba(212, 168, 85, 0.5)")
+        .attr("stroke-width", 2);
+      var edgeLeft = { type: "spouse-left", from: u.p1, to: u.uid, el: lineLeft };
+      edges.push(edgeLeft);
 
-          // Create union node at midpoint
-          var uid = unionId(d.data.id, spouse.id);
-          nodePositions[uid] = { x: (nx + sx) / 2, y: ny };
-          unionNodes[uid] = { personId: d.data.id, spouseId: spouse.id };
-        });
-      }
+      var lineRight = edgeLayer.append("line")
+        .attr("stroke", "rgba(212, 168, 85, 0.5)")
+        .attr("stroke-width", 2);
+      var edgeRight = { type: "spouse-right", from: u.uid, to: u.p2, el: lineRight };
+      edges.push(edgeRight);
+
+      var dot = unionLayer.append("circle")
+        .attr("cx", nodePositions[u.uid].x)
+        .attr("cy", nodePositions[u.uid].y)
+        .attr("r", 4)
+        .attr("fill", "rgba(212, 168, 85, 0.5)");
+      unionNodes[u.uid].dotEl = dot;
+
+      updateSimpleEdge(edgeLeft);
+      updateSimpleEdge(edgeRight);
     });
 
-    // Draw spouse edges: person -> union dot -> spouse (two line segments)
-    root.descendants().forEach((d) => {
-      if (d.data.spouses) {
-        d.data.spouses.forEach((spouse) => {
-          var uid = unionId(d.data.id, spouse.id);
-
-          // Left half: person to union
-          var lineLeft = edgeLayer.append("line")
-            .attr("stroke", "rgba(212, 168, 85, 0.5)")
-            .attr("stroke-width", 2);
-          var edgeLeft = { type: "spouse-left", from: d.data.id, to: uid, el: lineLeft };
-          edges.push(edgeLeft);
-
-          // Right half: union to spouse
-          var lineRight = edgeLayer.append("line")
-            .attr("stroke", "rgba(212, 168, 85, 0.5)")
-            .attr("stroke-width", 2);
-          var edgeRight = { type: "spouse-right", from: uid, to: spouse.id, el: lineRight };
-          edges.push(edgeRight);
-
-          // Union dot (small invisible-ish circle)
-          var dot = unionLayer.append("circle")
-            .attr("cx", nodePositions[uid].x)
-            .attr("cy", nodePositions[uid].y)
-            .attr("r", 4)
-            .attr("fill", "rgba(212, 168, 85, 0.5)");
-          unionNodes[uid].dotEl = dot;
-
-          updateSimpleEdge(edgeLeft);
-          updateSimpleEdge(edgeRight);
-        });
-      }
-    });
-
-    // Draw parent-child edges: from union node (if spouses) or from parent directly
-    root.links().forEach((link) => {
-      var parentId = link.source.data.id;
-      var childId = link.target.data.id;
-      var spouseIds = (link.source.data.spouses || []).map(function(s) { return s.id; });
-
-      // Determine the origin: union node if spouse exists, else the parent
-      var fromId;
-      if (spouseIds.length > 0) {
-        fromId = unionId(parentId, spouseIds[0]);
-      } else {
-        fromId = parentId;
-      }
+    // Draw parent-child edges
+    data.edges.forEach(function(e) {
+      if (!nodePositions[e.from] || !nodePositions[e.child]) return;
 
       var pathEl = edgeLayer.append("path")
         .attr("class", "link")
@@ -197,7 +313,7 @@
         .attr("stroke-opacity", 0.6)
         .attr("stroke-linecap", "round");
 
-      var edge = { type: "parent-child", from: fromId, to: childId, el: pathEl };
+      var edge = { type: "parent-child", from: e.from, to: e.child, el: pathEl };
       edges.push(edge);
       updateParentChildEdge(edge);
     });
@@ -205,6 +321,7 @@
     // Draw person nodes
     function makeNode(id, personData) {
       var pos = nodePositions[id];
+      if (!pos) return;
 
       var nodeG = nodeLayer
         .append("g")
@@ -245,7 +362,6 @@
           pos.x += event.dx;
           pos.y += event.dy;
           d3.select(this).attr("transform", "translate(" + pos.x + "," + pos.y + ")");
-          // Recompute any union nodes this person belongs to
           recomputeUnionsFor(id);
           updateEdgesFor(id);
         })
@@ -259,13 +375,8 @@
       nodeG.call(dragBehavior);
     }
 
-    root.descendants().forEach((d) => {
-      makeNode(d.data.id, d.data);
-      if (d.data.spouses) {
-        d.data.spouses.forEach((spouse) => {
-          makeNode(spouse.id, spouse);
-        });
-      }
+    data.nodes.forEach(function(p) {
+      makeNode(p.id, p);
     });
 
     // Auto-fit
@@ -289,34 +400,27 @@
       var u = unionNodes[uid];
       if (u.personId === personId || u.spouseId === personId) {
         computeUnionPos(uid);
-        // Move the dot
         if (u.dotEl) {
           u.dotEl.attr("cx", nodePositions[uid].x).attr("cy", nodePositions[uid].y);
         }
-        // Also update edges connected to this union
         updateEdgesFor(uid);
       }
     }
   }
 
-  // Simple straight-line edge (spouse halves)
+  // Simple straight-line edge (marriage halves)
   function updateSimpleEdge(edge) {
     var fromPos = nodePositions[edge.from];
     var toPos = nodePositions[edge.to];
     if (!fromPos || !toPos) return;
 
-    // For spouse-left: from person's right edge to union center
-    // For spouse-right: from union center to spouse's left edge
     var x1, y1, x2, y2;
-
     if (edge.type === "spouse-left") {
-      // from = person, to = union
       x1 = fromPos.x + NODE_WIDTH / 2;
       y1 = fromPos.y;
       x2 = toPos.x;
       y2 = toPos.y;
     } else if (edge.type === "spouse-right") {
-      // from = union, to = spouse
       x1 = fromPos.x;
       y1 = fromPos.y;
       x2 = toPos.x - NODE_WIDTH / 2;

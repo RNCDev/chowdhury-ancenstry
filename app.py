@@ -1,5 +1,6 @@
 import os
 import secrets
+from collections import defaultdict
 from functools import wraps
 
 from flask import (
@@ -12,7 +13,7 @@ from db import get_db, init_db
 
 app = Flask(__name__)
 
-APP_VERSION = "0.7.0"
+APP_VERSION = "0.8.0"
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
@@ -412,37 +413,6 @@ def api_tree():
     if not people:
         return jsonify(None)
 
-    # Build adjacency
-    children_of = {}  # parent_id → [child_id, ...]
-    spouses_of = {}   # person_id → [spouse_id, ...]
-
-    for r in rels:
-        rt = r['rel_type']
-        p1, p2 = r['person1_id'], r['person2_id']
-        if rt in ('parent_child', 'adopted_parent_child'):
-            children_of.setdefault(p1, []).append(p2)
-        elif rt in ('spouse', 'divorced'):
-            spouses_of.setdefault(p1, []).append(p2)
-            spouses_of.setdefault(p2, []).append(p1)
-
-    # Find the topmost ancestor: walk up parent links from any person
-    all_children = set()
-    for kids in children_of.values():
-        all_children.update(kids)
-
-    # Pick a parentless person; prefer one with children (i.e. not a lone spouse)
-    parentless = [pid for pid in people if pid not in all_children]
-    root_id = None
-    for pid in parentless:
-        if pid in children_of or any(pid in children_of for s in spouses_of.get(pid, [])):
-            root_id = pid
-            break
-    if root_id is None:
-        root_id = parentless[0] if parentless else next(iter(people))
-
-    # Build tree recursively
-    built = set()
-
     def _person_info(pid):
         p = people[pid]
         return {
@@ -452,35 +422,38 @@ def api_tree():
             'photo_path': p['photo_path'],
         }
 
-    def build_node(pid):
-        if pid in built or pid not in people:
-            return None
-        built.add(pid)
-        node = _person_info(pid)
-        node['spouses'] = []
-        node['children'] = []
+    # Build flat lists of nodes, unions, and edges
+    nodes = [_person_info(pid) for pid in people]
 
-        # Spouses shown as annotations
-        spouse_ids = []
-        for sid in spouses_of.get(pid, []):
-            if sid in people:
-                node['spouses'].append(_person_info(sid))
-                spouse_ids.append(sid)
-                built.add(sid)
+    couple_set = set()  # (min_id, max_id) for quick lookup
+    unions = []
+    for r in rels:
+        if r['rel_type'] in ('spouse', 'divorced'):
+            p1, p2 = min(r['person1_id'], r['person2_id']), max(r['person1_id'], r['person2_id'])
+            key = (p1, p2)
+            if key not in couple_set:
+                couple_set.add(key)
+                unions.append({'uid': f"union_{p1}_{p2}", 'p1': p1, 'p2': p2})
 
-        # Children from this person and their spouses
-        seen_children = set()
-        for parent_id in [pid] + spouse_ids:
-            for cid in children_of.get(parent_id, []):
-                if cid not in seen_children:
-                    seen_children.add(cid)
-                    child_node = build_node(cid)
-                    if child_node:
-                        node['children'].append(child_node)
-        return node
+    # For each child, collect their parents
+    parents_of = defaultdict(list)
+    for r in rels:
+        if r['rel_type'] in ('parent_child', 'adopted_parent_child'):
+            parents_of[r['person2_id']].append(r['person1_id'])
 
-    tree = build_node(root_id)
-    return jsonify({'root': tree})
+    edges = []
+    for child_id, parent_ids in parents_of.items():
+        if len(parent_ids) >= 2:
+            p1, p2 = min(parent_ids[0], parent_ids[1]), max(parent_ids[0], parent_ids[1])
+            if (p1, p2) in couple_set:
+                edges.append({'from': f"union_{p1}_{p2}", 'child': child_id})
+            else:
+                for pid in parent_ids:
+                    edges.append({'from': pid, 'child': child_id})
+        else:
+            edges.append({'from': parent_ids[0], 'child': child_id})
+
+    return jsonify({'nodes': nodes, 'unions': unions, 'edges': edges})
 
 
 # --- Tree page ---
