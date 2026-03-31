@@ -524,7 +524,13 @@ button:hover, [type="submit"]:hover {
     display: grid;
     grid-template-columns: 1fr 1fr auto;
     gap: var(--space-sm);
-    align-items: end;
+    align-items: stretch;
+}
+
+.tab-content-relationships .add-rel-grid .btn-secondary {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    align-self: stretch;
 }
 
 @media (max-width: 480px) {
