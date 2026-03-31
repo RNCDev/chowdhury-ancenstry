@@ -638,6 +638,10 @@ button:hover, [type="submit"]:hover {
     flex-shrink: 0;
 }
 
+.detail-card-actions form {
+    display: contents;
+}
+
 /* ── Relationships tab (form page) ── */
 .tab-content-relationships .rel-item {
     display: flex;
