@@ -330,15 +330,18 @@ button:hover, [type="submit"]:hover {
 
 .btn-outline-danger {
     background: transparent;
-    border: 1px solid var(--color-error);
-    color: var(--color-error);
-    padding: 0.4rem 0.75rem;
-    font-size: 0.85rem;
-    transition: background 0.15s;
+    border: none;
+    color: var(--text-muted);
+    padding: 0.25rem 0.5rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    transition: color 0.15s;
+    flex-shrink: 0;
 }
 
 .btn-outline-danger:hover {
-    background: var(--color-error-bg);
+    color: var(--color-error);
+    background: transparent;
 }
 
 .btn-secondary {
@@ -461,8 +464,9 @@ button:hover, [type="submit"]:hover {
     white-space: nowrap;
 }
 
-.form-tab:hover {
-    color: var(--text-body);
+.form-tab:hover:not(.active) {
+    color: var(--text-primary);
+    background: rgba(90,62,40,0.06);
 }
 
 .form-tab.active {
@@ -476,9 +480,8 @@ button:hover, [type="submit"]:hover {
 .tab-content-relationships .rel-item {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: var(--space-sm) 0;
-    gap: var(--space-sm);
+    padding: 10px 0;
+    gap: var(--space-md);
     border-bottom: 1px solid var(--border-default);
 }
 
@@ -488,19 +491,27 @@ button:hover, [type="submit"]:hover {
 
 .tab-content-relationships .rel-label {
     color: var(--text-muted);
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     font-weight: 500;
-    min-width: 5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    min-width: 6rem;
+    flex-shrink: 0;
+}
+
+.tab-content-relationships .rel-person {
+    flex: 1;
 }
 
 .tab-content-relationships .rel-person a {
-    color: var(--accent-link);
+    color: var(--text-primary);
     text-decoration: none;
     font-weight: 600;
+    font-size: 0.95rem;
 }
 
 .tab-content-relationships .rel-person a:hover {
-    text-decoration: underline;
+    color: var(--accent-link);
 }
 
 .tab-content-relationships .add-rel-form {
