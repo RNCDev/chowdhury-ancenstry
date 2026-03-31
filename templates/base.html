@@ -18,8 +18,9 @@
     </head>
     <body class="{% block body_class %}{% endblock %}">
         {% if current_user %}
-        {% if current_family %}
-        <a href="{{ url_for('family_tree', fid=current_family.id) }}" class="back-arrow" aria-label="Back to tree">
+        {% set back_fid = current_family.id if current_family else request.args.get('fid') %}
+        {% if back_fid %}
+        <a href="{{ url_for('family_tree', fid=back_fid) }}" class="back-arrow" aria-label="Back to tree">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="15 18 9 12 15 6"/>
             </svg>
@@ -73,7 +74,7 @@
             {% endif %}
             <span class="utility-pill-divider"></span>
             {% endif %}
-            <a href="{{ url_for('settings') }}" class="utility-pill-action utility-pill-muted" aria-label="Account settings">
+            <a href="{{ url_for('settings') }}{% if current_family %}?fid={{ current_family.id }}{% endif %}" class="utility-pill-action utility-pill-muted" aria-label="Account settings">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
                     <circle cx="12" cy="7" r="4"/>

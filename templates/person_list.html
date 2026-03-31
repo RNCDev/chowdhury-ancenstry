@@ -21,14 +21,21 @@
 {% endmacro %}
 
 {% block content %}
-<div class="page-header">
-    <h2 class="page-title">People</h2>
-    <div class="page-header-actions">
+<h2 class="page-title">People</h2>
+
+<div class="people-toolbar">
+    <div class="people-sort-group">
+        <span class="sort-bar-label">Sort</span>
+        {{ sort_link('name', 'Name') }}
+        {{ sort_link('dob', 'Birth date') }}
+        {{ sort_link('place', 'Birthplace') }}
+    </div>
+    <div class="people-toolbar-right">
         <form method="get" role="search" class="search-box">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
-            <input type="search" name="q" value="{{ search }}" placeholder="Search people…">
+            <input type="search" name="q" value="{{ search }}" placeholder="Search…">
         </form>
         {% if is_admin %}
         <a href="{{ url_for('person_new', fid=fid) }}" class="btn-primary-sm">
@@ -42,12 +49,6 @@
 </div>
 
 {% if people %}
-<div class="sort-bar">
-    <span class="sort-bar-label">Sort by</span>
-    {{ sort_link('name', 'Name') }}
-    {{ sort_link('dob', 'Date of Birth') }}
-    {{ sort_link('place', 'Place of Birth') }}
-</div>
 
 <div class="people-list">
     {% for p in people %}
