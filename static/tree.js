@@ -63,8 +63,8 @@
     svg.transition().duration(400).call(zoomBehavior.transform, fitTransform);
   });
 
-  const NODE_WIDTH = 160;
-  const NODE_HEIGHT = 60;
+  const NODE_WIDTH = 190;
+  const NODE_HEIGHT = 56;
   const SPOUSE_GAP = 40;
   const COUPLE_WIDTH = NODE_WIDTH * 2 + SPOUSE_GAP;
 
@@ -217,7 +217,7 @@
         .attr("y", -NODE_HEIGHT / 2)
         .attr("width", NODE_WIDTH)
         .attr("height", NODE_HEIGHT)
-        .attr("rx", 30)
+        .attr("rx", 28)
         .attr("class", "person-card");
 
       nodeG.append("text")
