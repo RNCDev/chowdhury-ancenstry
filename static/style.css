@@ -226,14 +226,15 @@ main.container {
 .person-card {
     fill: var(--bg-card);
     stroke: var(--border-default);
-    stroke-width: 1;
+    stroke-width: 1.5;
+    filter: drop-shadow(0 2px 8px rgba(90,62,40,0.10));
     transition: fill 0.15s;
 }
 
 .spouse-card {
     fill: var(--bg-card);
     stroke: var(--border-default);
-    stroke-width: 1;
+    stroke-width: 1.5;
 }
 
 .node:hover .person-card,

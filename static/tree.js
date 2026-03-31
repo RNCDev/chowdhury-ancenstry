@@ -215,7 +215,7 @@
         .attr("y", -NODE_HEIGHT / 2)
         .attr("width", NODE_WIDTH)
         .attr("height", NODE_HEIGHT)
-        .attr("rx", 6)
+        .attr("rx", 30)
         .attr("class", "person-card");
 
       nodeG.append("text")
