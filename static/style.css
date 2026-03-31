@@ -129,7 +129,7 @@ main.container {
     gap: 0;
     background: var(--bg-card);
     border: 1px solid var(--border-default);
-    border-radius: var(--radius-sm);
+    border-radius: 24px;
     box-shadow: var(--shadow-sm);
     padding: var(--space-xs);
 }
@@ -140,7 +140,7 @@ main.container {
     gap: var(--space-xs);
     padding: var(--space-sm) var(--space-md);
     min-height: 40px;
-    border-radius: calc(var(--radius-sm) - 2px);
+    border-radius: 20px;
     color: var(--text-body);
     text-decoration: none;
     font-size: 0.85rem;
@@ -212,7 +212,7 @@ main.container {
     cursor: pointer;
     background: var(--bg-card);
     border: 1px solid var(--border-default);
-    border-radius: var(--radius-sm);
+    border-radius: 20px;
     box-shadow: var(--shadow-sm);
     color: var(--text-body);
     transition: background 0.15s;
