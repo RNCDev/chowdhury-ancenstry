@@ -12,7 +12,7 @@ from db import get_db, init_db
 
 app = Flask(__name__)
 
-APP_VERSION = "1.0.0"
+APP_VERSION = "0.7.0"
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
