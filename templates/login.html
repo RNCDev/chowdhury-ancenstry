@@ -11,6 +11,13 @@ block content %}
     {% else %}
     <p>Enter your password to continue.</p>
     {% endif %}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    {% for category, message in messages %}
+    <div class="flash-{{ category }}">{{ message }}</div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
     <form method="post">
         <label for="password">Password</label>
         <input
