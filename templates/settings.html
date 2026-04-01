@@ -31,28 +31,4 @@
     </form>
 </div>
 
-{% if invites_created %}
-<div class="form-card invites-card">
-    <h3 class="section-title">Your Invites</h3>
-    <div class="invites-list">
-        {% for inv in invites_created %}
-        <div class="invite-row">
-            <div class="invite-row-info">
-                <span class="invite-row-name">{{ inv.first_name }} {{ inv.last_name }}</span>
-                <span class="invite-row-family">{{ inv.family_name }}</span>
-            </div>
-            <div class="invite-row-meta">
-                {% if inv.accepted_at %}
-                <span class="invite-status invite-status-accepted">Accepted</span>
-                <span class="invite-date">{{ inv.accepted_at[:10] }}</span>
-                {% else %}
-                <span class="invite-status invite-status-pending">Pending</span>
-                <span class="invite-date">Sent {{ inv.created_at[:10] }}</span>
-                {% endif %}
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-</div>
-{% endif %}
 {% endblock %}

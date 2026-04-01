@@ -1,7 +1,7 @@
 import os
 import secrets
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime
 from functools import wraps
 
 from flask import (
@@ -16,7 +16,7 @@ from db import DATABASE, close_db, get_db, init_db
 app = Flask(__name__)
 app.teardown_appcontext(close_db)
 
-APP_VERSION = "0.9.4"
+APP_VERSION = "0.9.5"
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
@@ -86,6 +86,53 @@ def family_access_required(role=None):
     return decorator
 
 
+def family_view_required(f):
+    """Decorator for read-only family routes.
+    Allows both logged-in members and unauthenticated viewers (via share link session key).
+    Sets g.view_only, g.family, g.membership, g.is_admin, g.share_token.
+    """
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        fid = kwargs.get('fid')
+        db = get_db()
+        g.family = db.execute("SELECT * FROM family WHERE id = ?", (fid,)).fetchone()
+        if not g.family:
+            abort(404)
+        share = db.execute(
+            "SELECT * FROM family_share_token WHERE family_id = ?", (fid,)
+        ).fetchone()
+        g.share_token = share
+
+        user_id = session.get('user_id')
+        if user_id:
+            g.user = db.execute("SELECT * FROM user WHERE id = ?", (user_id,)).fetchone()
+            if not g.user:
+                session.clear()
+                return redirect(url_for('login'))
+            g.membership = db.execute(
+                "SELECT * FROM family_membership WHERE user_id = ? AND family_id = ?",
+                (user_id, fid),
+            ).fetchone()
+            if g.membership:
+                g.is_admin = g.membership['role'] == 'admin'
+                g.view_only = False
+                return f(*args, **kwargs)
+
+        # Not logged in or not a member — check session view access
+        view_access = session.get('family_view_access', {})
+        if str(fid) in view_access or fid in view_access:
+            g.membership = None
+            g.is_admin = False
+            g.view_only = True
+            return f(*args, **kwargs)
+
+        # No access — send to join page if a share token exists, else login
+        if share:
+            return redirect(url_for('join_family', token=share['token']))
+        return redirect(url_for('login'))
+    return decorated
+
+
 @app.context_processor
 def inject_globals():
     from markupsafe import Markup
@@ -96,6 +143,9 @@ def inject_globals():
         'current_user': g.get('user'),
         'current_family': g.get('family'),
         'is_admin': g.get('is_admin', False),
+        'membership': g.get('membership'),
+        'view_only': g.get('view_only', False),
+        'share_token': g.get('share_token'),
         'csrf_field': csrf_field,
     }
 
@@ -114,7 +164,7 @@ def csrf_protect():
     if request.method == 'POST':
         # Exempt login/register (no session when first submitting) and invite accept (token-based)
         path = request.path
-        if path in _CSRF_EXEMPT or path.startswith('/invite/'):
+        if path in _CSRF_EXEMPT or path.startswith('/join/'):
             return
         token = request.form.get('csrf_token') or request.headers.get('X-CSRF-Token')
         if not token or token != session.get('csrf_token'):
@@ -256,16 +306,7 @@ def settings():
         flash('Settings saved.', 'success')
         return redirect(url_for('settings'))
 
-    db = get_db()
-    invites_created = db.execute("""
-        SELECT it.*, p.first_name, p.last_name, f.name AS family_name
-        FROM invite_token it
-        JOIN person p ON p.id = it.person_id
-        JOIN family f ON f.id = it.family_id
-        WHERE it.created_by = ?
-        ORDER BY it.created_at DESC
-    """, (session['user_id'],)).fetchall()
-    return render_template('settings.html', invites_created=invites_created)
+    return render_template('settings.html')
 
 
 # --- Family-scoped routes ---
@@ -273,8 +314,7 @@ def settings():
 # Tree
 
 @app.route('/family/<int:fid>')
-@login_required
-@family_access_required()
+@family_view_required
 def family_tree(fid):
     db = get_db()
     has_people = db.execute("SELECT 1 FROM person WHERE family_id = ? LIMIT 1", (fid,)).fetchone() is not None
@@ -282,8 +322,7 @@ def family_tree(fid):
 
 
 @app.route('/family/<int:fid>/api/tree')
-@login_required
-@family_access_required()
+@family_view_required
 def api_tree(fid):
     db = get_db()
     people = {row['id']: dict(row) for row in db.execute(
@@ -336,8 +375,7 @@ def api_tree(fid):
 
 
 @app.route('/family/<int:fid>/api/history')
-@login_required
-@family_access_required()
+@family_view_required
 def api_history(fid):
     db = get_db()
     rows = db.execute(
@@ -362,8 +400,7 @@ def api_history(fid):
 # People
 
 @app.route('/family/<int:fid>/people')
-@login_required
-@family_access_required()
+@family_view_required
 def person_list(fid):
     search = request.args.get('q', '').strip()
     sort = request.args.get('sort', 'name')
@@ -406,73 +443,6 @@ def person_new(fid):
     return render_template('person_form.html', person=None, fid=fid)
 
 
-@app.route('/family/<int:fid>/invite/new', methods=['GET', 'POST'])
-@login_required
-@family_access_required()
-def invite_new(fid):
-    """Any member can add a person stub and invite them in one step."""
-    db = get_db()
-    people = db.execute(
-        "SELECT id, first_name, last_name FROM person WHERE family_id = ? ORDER BY last_name, first_name",
-        (fid,),
-    ).fetchall()
-
-    if request.method == 'POST':
-        first_name = request.form.get('first_name', '').strip()
-        last_name = request.form.get('last_name', '').strip()
-        email = request.form.get('email', '').strip() or None
-        rel_type = request.form.get('rel_type', '').strip() or None
-        rel_person_id = request.form.get('rel_person_id', '').strip()
-        rel_person_id = int(rel_person_id) if rel_person_id else None
-
-        if not first_name or not last_name:
-            flash('First and last name are required.', 'error')
-            return render_template('invite_new.html', fid=fid, people=people,
-                                   first_name=first_name, last_name=last_name, email=email)
-
-        db = get_db()
-        cursor = db.execute(
-            "INSERT INTO person (family_id, first_name, last_name, email, status) VALUES (?, ?, ?, ?, 'stub')",
-            (fid, first_name, last_name, email),
-        )
-        person_id = cursor.lastrowid
-
-        if rel_type and rel_person_id:
-            if rel_type == 'child':
-                # New person is child of selected person
-                db.execute(
-                    "INSERT INTO relationship (family_id, person1_id, person2_id, rel_type) VALUES (?, ?, ?, 'parent_child')",
-                    (fid, rel_person_id, person_id),
-                )
-            elif rel_type == 'parent':
-                # New person is parent of selected person
-                db.execute(
-                    "INSERT INTO relationship (family_id, person1_id, person2_id, rel_type) VALUES (?, ?, ?, 'parent_child')",
-                    (fid, person_id, rel_person_id),
-                )
-            elif rel_type == 'spouse':
-                p1, p2 = min(rel_person_id, person_id), max(rel_person_id, person_id)
-                db.execute(
-                    "INSERT INTO relationship (family_id, person1_id, person2_id, rel_type) VALUES (?, ?, ?, 'spouse')",
-                    (fid, p1, p2),
-                )
-
-        token = secrets.token_urlsafe(32)
-        expires = (datetime.utcnow() + timedelta(days=30)).strftime('%Y-%m-%d %H:%M:%S')
-        db.execute(
-            "INSERT INTO invite_token (token, family_id, person_id, created_by, expires_at) VALUES (?, ?, ?, ?, ?)",
-            (token, fid, person_id, session['user_id'], expires),
-        )
-        full_name = f"{first_name} {last_name}"
-        _audit(db, 'add', 'person', person_id, f"Added and invited {full_name}", family_id=fid)
-        db.commit()
-
-        invite_url = url_for('invite_accept', token=token, _external=True)
-        flash(f'Invite link for {full_name}: {invite_url}', 'success')
-        return redirect(url_for('settings'))
-
-    return render_template('invite_new.html', fid=fid, people=people,
-                           first_name='', last_name='', email='')
 
 
 def _get_relationships_and_people(fid, person_id):
@@ -738,132 +708,100 @@ def family_settings(fid):
         WHERE fm.family_id = ?
         ORDER BY fm.role, u.username
     """, (fid,)).fetchall()
-    invites = db.execute("""
-        SELECT it.*, p.first_name, p.last_name,
-               u.username AS created_by_name
-        FROM invite_token it
-        JOIN person p ON p.id = it.person_id
-        JOIN user u ON u.id = it.created_by
-        WHERE it.family_id = ? AND it.accepted_at IS NULL
-        ORDER BY it.created_at DESC
-    """, (fid,)).fetchall()
-    return render_template('family_settings.html', fid=fid, members=members, invites=invites)
+    share_token = db.execute(
+        "SELECT * FROM family_share_token WHERE family_id = ?", (fid,)
+    ).fetchone()
+    return render_template('family_settings.html', fid=fid, members=members, share_token=share_token)
 
 
-# --- Invite system ---
+# --- Share link system ---
 
-@app.route('/family/<int:fid>/invite', methods=['POST'])
-@login_required
-@family_access_required(role='admin')
-def invite_create(fid):
-    first_name = request.form.get('first_name', '').strip()
-    last_name = request.form.get('last_name', '').strip()
-    if not first_name or not last_name:
-        flash('First and last name are required for the invite.', 'error')
-        return redirect(url_for('family_settings', fid=fid))
-
-    db = get_db()
-    cursor = db.execute(
-        "INSERT INTO person (family_id, first_name, last_name, status) VALUES (?, ?, ?, 'stub')",
-        (fid, first_name, last_name),
-    )
-    person_id = cursor.lastrowid
-    token = secrets.token_urlsafe(32)
-    expires = (datetime.utcnow() + timedelta(days=30)).strftime('%Y-%m-%d %H:%M:%S')
-    db.execute(
-        "INSERT INTO invite_token (token, family_id, person_id, created_by, expires_at) VALUES (?, ?, ?, ?, ?)",
-        (token, fid, person_id, session['user_id'], expires),
-    )
-    _audit(db, 'add', 'person', person_id, f"Created invite stub for {first_name} {last_name}", family_id=fid)
-    db.commit()
-
-    invite_url = url_for('invite_accept', token=token, _external=True)
-    flash(f'Invite created! Share this link: {invite_url}', 'success')
-    return redirect(url_for('family_settings', fid=fid))
-
-
-@app.route('/family/<int:fid>/person/<int:person_id>/invite', methods=['POST'])
+@app.route('/family/<int:fid>/share/generate', methods=['POST'])
 @login_required
 @family_access_required()
-def invite_person(fid, person_id):
-    """Any member can invite an existing person who isn't linked to a user yet."""
-    db = get_db()
-    person = db.execute("SELECT * FROM person WHERE id = ? AND family_id = ?", (person_id, fid)).fetchone()
-    if not person:
-        abort(404)
-
-    # Check not already linked
-    linked = db.execute("SELECT id FROM family_membership WHERE person_id = ?", (person_id,)).fetchone()
-    if linked:
-        flash('This person already has an account.', 'error')
-        return redirect(url_for('person_edit', fid=fid, person_id=person_id))
-
-    # Check no pending invite already
-    pending = db.execute(
-        "SELECT id FROM invite_token WHERE person_id = ? AND accepted_at IS NULL", (person_id,)
-    ).fetchone()
-    if pending:
-        flash('There is already a pending invite for this person.', 'error')
-        return redirect(url_for('person_edit', fid=fid, person_id=person_id))
-
+def share_generate(fid):
     token = secrets.token_urlsafe(32)
-    expires = (datetime.utcnow() + timedelta(days=30)).strftime('%Y-%m-%d %H:%M:%S')
-    db.execute(
-        "INSERT INTO invite_token (token, family_id, person_id, created_by, expires_at) VALUES (?, ?, ?, ?, ?)",
-        (token, fid, person_id, session['user_id'], expires),
-    )
-    name = f"{person['first_name']} {person['last_name']}"
-    _audit(db, 'add', 'relationship', None, f"Created invite for {name}", family_id=fid)
-    db.commit()
-
-    invite_url = url_for('invite_accept', token=token, _external=True)
-    flash(f'Invite link for {name}: {invite_url}', 'success')
-    return redirect(url_for('settings'))
-
-
-@app.route('/family/<int:fid>/invite/<int:invite_id>/revoke', methods=['POST'])
-@login_required
-@family_access_required(role='admin')
-def invite_revoke(fid, invite_id):
     db = get_db()
-    invite = db.execute("SELECT * FROM invite_token WHERE id = ? AND family_id = ?", (invite_id, fid)).fetchone()
-    if invite:
-        db.execute("DELETE FROM person WHERE id = ? AND status = 'stub'", (invite['person_id'],))
-        db.execute("DELETE FROM invite_token WHERE id = ?", (invite_id,))
-        db.commit()
-        flash('Invite revoked.', 'success')
+    db.execute(
+        "INSERT INTO family_share_token (family_id, token, created_by) VALUES (?, ?, ?)"
+        " ON CONFLICT(family_id) DO UPDATE SET token = excluded.token, created_by = excluded.created_by, created_at = datetime('now')",
+        (fid, token, session['user_id']),
+    )
+    db.commit()
+    share_url = url_for('join_family', token=token, _external=True)
+    flash(f'Share link: {share_url}', 'success')
     return redirect(url_for('family_settings', fid=fid))
 
 
-@app.route('/invite/<token>', methods=['GET', 'POST'])
-def invite_accept(token):
+@app.route('/family/<int:fid>/share/rotate', methods=['POST'])
+@login_required
+@family_access_required(role='admin')
+def share_rotate(fid):
+    token = secrets.token_urlsafe(32)
     db = get_db()
-    invite = db.execute("""
-        SELECT it.*, f.name AS family_name,
-               p.first_name, p.last_name, p.email
-        FROM invite_token it
-        JOIN family f ON f.id = it.family_id
-        JOIN person p ON p.id = it.person_id
-        WHERE it.token = ?
-    """, (token,)).fetchone()
+    db.execute(
+        "INSERT INTO family_share_token (family_id, token, created_by) VALUES (?, ?, ?)"
+        " ON CONFLICT(family_id) DO UPDATE SET token = excluded.token, created_by = excluded.created_by, created_at = datetime('now')",
+        (fid, token, session['user_id']),
+    )
+    db.commit()
+    share_url = url_for('join_family', token=token, _external=True)
+    flash(f'Link rotated. New link: {share_url}', 'success')
+    return redirect(url_for('family_settings', fid=fid))
 
-    if not invite:
-        flash('Invalid or expired invite link.', 'error')
+
+@app.route('/join/<token>')
+def join_family(token):
+    db = get_db()
+    row = db.execute(
+        "SELECT fst.*, f.name AS family_name FROM family_share_token fst JOIN family f ON f.id = fst.family_id WHERE fst.token = ?",
+        (token,),
+    ).fetchone()
+    if not row:
+        flash('Invalid share link.', 'error')
         return redirect(url_for('login'))
 
-    if invite['accepted_at']:
-        flash('This invite has already been accepted.', 'error')
+    fid = row['family_id']
+    user_id = session.get('user_id')
+    if user_id:
+        # Logged-in user: add as member if not already one
+        existing = db.execute(
+            "SELECT id FROM family_membership WHERE user_id = ? AND family_id = ?",
+            (user_id, fid),
+        ).fetchone()
+        if not existing:
+            db.execute(
+                "INSERT INTO family_membership (user_id, family_id, role) VALUES (?, ?, 'member')",
+                (user_id, fid),
+            )
+            db.commit()
+            flash(f'Welcome to the {row["family_name"]} family tree!', 'success')
+        return redirect(url_for('family_tree', fid=fid))
+
+    # Not logged in — grant session-based view access
+    view_access = session.get('family_view_access', {})
+    view_access[str(fid)] = True
+    session['family_view_access'] = view_access
+    return redirect(url_for('family_tree', fid=fid))
+
+
+@app.route('/join/<token>/register', methods=['GET', 'POST'])
+def join_register(token):
+    db = get_db()
+    row = db.execute(
+        "SELECT fst.*, f.name AS family_name FROM family_share_token fst JOIN family f ON f.id = fst.family_id WHERE fst.token = ?",
+        (token,),
+    ).fetchone()
+    if not row:
+        flash('Invalid share link.', 'error')
         return redirect(url_for('login'))
 
-    now = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-    if now > invite['expires_at']:
-        flash('This invite has expired. Please ask the admin for a new one.', 'error')
-        return redirect(url_for('login'))
+    fid = row['family_id']
 
     if request.method == 'POST':
-        action = request.form.get('action', '')
-
+        action = request.form.get('action', 'register')
         user_id = None
+
         if action == 'register':
             username = request.form.get('username', '').strip()
             password = request.form.get('password', '')
@@ -872,19 +810,17 @@ def invite_accept(token):
 
             if not username or len(username) < 3:
                 flash('Username must be at least 3 characters.', 'error')
-                return render_template('invite_accept.html', invite=invite, token=token)
+                return render_template('share_join.html', row=row, token=token)
             if len(password) < 8:
                 flash('Password must be at least 8 characters.', 'error')
-                return render_template('invite_accept.html', invite=invite, token=token)
+                return render_template('share_join.html', row=row, token=token)
             if password != confirm:
                 flash('Passwords do not match.', 'error')
-                return render_template('invite_accept.html', invite=invite, token=token)
-
+                return render_template('share_join.html', row=row, token=token)
             existing = db.execute("SELECT id FROM user WHERE username = ?", (username,)).fetchone()
             if existing:
                 flash('Username already taken.', 'error')
-                return render_template('invite_accept.html', invite=invite, token=token)
-
+                return render_template('share_join.html', row=row, token=token)
             cursor = db.execute(
                 "INSERT INTO user (username, password_hash, display_name) VALUES (?, ?, ?)",
                 (username, generate_password_hash(password), display_name),
@@ -897,38 +833,59 @@ def invite_accept(token):
             user = db.execute("SELECT * FROM user WHERE username = ?", (username,)).fetchone()
             if not user or not check_password_hash(user['password_hash'], password):
                 flash('Invalid username or password.', 'error')
-                return render_template('invite_accept.html', invite=invite, token=token)
+                return render_template('share_join.html', row=row, token=token)
             user_id = user['id']
 
         if user_id:
-            # Activate person and create membership
-            db.execute("UPDATE person SET status = 'active' WHERE id = ?", (invite['person_id'],))
-            # Check if already a member
             existing_mem = db.execute(
                 "SELECT id FROM family_membership WHERE user_id = ? AND family_id = ?",
-                (user_id, invite['family_id']),
+                (user_id, fid),
             ).fetchone()
             if not existing_mem:
                 db.execute(
-                    "INSERT INTO family_membership (user_id, family_id, person_id, role) VALUES (?, ?, ?, 'member')",
-                    (user_id, invite['family_id'], invite['person_id']),
+                    "INSERT INTO family_membership (user_id, family_id, role) VALUES (?, ?, 'member')",
+                    (user_id, fid),
                 )
-            else:
-                # Link person_id if not already linked
-                db.execute(
-                    "UPDATE family_membership SET person_id = ? WHERE user_id = ? AND family_id = ? AND person_id IS NULL",
-                    (invite['person_id'], user_id, invite['family_id']),
-                )
-            db.execute(
-                "UPDATE invite_token SET accepted_by = ?, accepted_at = ? WHERE id = ?",
-                (user_id, now, invite['id']),
-            )
             db.commit()
             session['user_id'] = user_id
-            flash(f'Welcome to the {invite["family_name"]} family tree!', 'success')
-            return redirect(url_for('family_tree', fid=invite['family_id']))
+            # Clear session view access now that they have a real account
+            view_access = session.get('family_view_access', {})
+            view_access.pop(str(fid), None)
+            session['family_view_access'] = view_access
+            flash(f'Welcome to the {row["family_name"]} family tree!', 'success')
+            return redirect(url_for('family_tree', fid=fid))
 
-    return render_template('invite_accept.html', invite=invite, token=token)
+    return render_template('share_join.html', row=row, token=token)
+
+
+@app.route('/family/<int:fid>/link-person', methods=['GET', 'POST'])
+@login_required
+@family_access_required()
+def link_person(fid):
+    db = get_db()
+    if request.method == 'POST':
+        person_id = request.form.get('person_id', '').strip()
+        if person_id:
+            db.execute(
+                "UPDATE family_membership SET person_id = ? WHERE user_id = ? AND family_id = ?",
+                (int(person_id), session['user_id'], fid),
+            )
+            db.commit()
+            flash('Profile linked.', 'success')
+        return redirect(url_for('family_tree', fid=fid))
+
+    # People not yet linked to any user account
+    unlinked = db.execute("""
+        SELECT p.id, p.first_name, p.last_name
+        FROM person p
+        WHERE p.family_id = ?
+          AND p.id NOT IN (
+              SELECT person_id FROM family_membership
+              WHERE family_id = ? AND person_id IS NOT NULL
+          )
+        ORDER BY p.last_name, p.first_name
+    """, (fid, fid)).fetchall()
+    return render_template('link_person.html', unlinked=unlinked, fid=fid)
 
 
 # --- Photo serving ---

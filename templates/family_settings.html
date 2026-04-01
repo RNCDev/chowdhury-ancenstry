@@ -42,42 +42,25 @@
 </div>
 
 <div class="form-card">
-    <h3 class="section-title">Invite Someone</h3>
-    <p class="form-hint">
-        Create a person stub and generate a shareable invite link. The recipient will register and review their info.
-    </p>
-    <form method="post" action="{{ url_for('invite_create', fid=fid) }}">
-        {{ csrf_field }}
-        <div class="form-grid form-grid-2">
-            <label>
-                First Name *
-                <input type="text" name="first_name" required placeholder="Their first name">
-            </label>
-            <label>
-                Last Name *
-                <input type="text" name="last_name" required placeholder="Their last name">
-            </label>
-        </div>
-        <button type="submit" class="btn-mt">Create Invite</button>
-    </form>
-</div>
-
-{% if invites %}
-<div class="form-card">
-    <h3 class="section-title">Pending Invites</h3>
-    {% for inv in invites %}
-    <div class="rel-item">
-        <span class="rel-person">
-            <strong>{{ inv.first_name }} {{ inv.last_name }}</strong>
-            <span class="text-muted"> — created by {{ inv.created_by_name }}</span>
-        </span>
-        <form method="post" action="{{ url_for('invite_revoke', fid=fid, invite_id=inv.id) }}">
-            {{ csrf_field }}
-            <button type="submit" class="btn-outline-danger btn-sm"
-                    onclick="return confirm('Revoke this invite?')">Revoke</button>
-        </form>
+    <h3 class="section-title">Share Link</h3>
+    <p class="form-hint">Anyone with this link can view the tree. Creating an account upgrades them to a full member.</p>
+    {% if share_token %}
+    <div class="share-link-row">
+        <input type="text" class="share-link-input" readonly
+               value="{{ url_for('join_family', token=share_token.token, _external=True) }}">
+        <button type="button" class="btn-ghost btn-sm"
+                onclick="navigator.clipboard.writeText(this.previousElementSibling.value); this.textContent='Copied!'">Copy</button>
     </div>
-    {% endfor %}
+    <form method="post" action="{{ url_for('share_rotate', fid=fid) }}" style="margin-top:0.75rem">
+        {{ csrf_field }}
+        <button type="submit" class="btn-outline-danger btn-sm"
+                onclick="return confirm('Rotate the link? The old link will stop working.')">Rotate Link</button>
+    </form>
+    {% else %}
+    <form method="post" action="{{ url_for('share_generate', fid=fid) }}">
+        {{ csrf_field }}
+        <button type="submit">Generate Share Link</button>
+    </form>
+    {% endif %}
 </div>
-{% endif %}
 {% endblock %}

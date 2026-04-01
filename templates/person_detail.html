@@ -21,12 +21,6 @@
         </div>
         <div class="detail-card-actions">
             <a href="{{ url_for('person_edit', fid=fid, person_id=person.id) }}" class="btn-primary-sm">Edit</a>
-            {% if can_invite %}
-            <form method="post" action="{{ url_for('invite_person', fid=fid, person_id=person.id) }}">
-                {{ csrf_field }}
-                <button type="submit" class="btn-secondary btn-sm">Invite</button>
-            </form>
-            {% endif %}
             {% if is_admin %}
             <form method="post" action="{{ url_for('person_delete', fid=fid, person_id=person.id) }}">
                 {{ csrf_field }}

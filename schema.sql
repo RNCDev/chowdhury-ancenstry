@@ -22,15 +22,11 @@ CREATE TABLE IF NOT EXISTS family_membership (
     UNIQUE(user_id, family_id)
 );
 
-CREATE TABLE IF NOT EXISTS invite_token (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    token TEXT NOT NULL UNIQUE,
-    family_id INTEGER NOT NULL REFERENCES family(id) ON DELETE CASCADE,
-    person_id INTEGER NOT NULL REFERENCES person(id) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS family_share_token (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    family_id  INTEGER NOT NULL UNIQUE REFERENCES family(id) ON DELETE CASCADE,
+    token      TEXT NOT NULL UNIQUE,
     created_by INTEGER REFERENCES user(id) ON DELETE SET NULL,
-    expires_at TEXT NOT NULL,
-    accepted_by INTEGER REFERENCES user(id) ON DELETE SET NULL,
-    accepted_at TEXT,
     created_at TEXT DEFAULT (datetime('now'))
 );
 
@@ -87,7 +83,6 @@ CREATE TABLE IF NOT EXISTS audit_log (
 -- Performance indexes
 CREATE INDEX IF NOT EXISTS idx_person_family ON person(family_id);
 CREATE INDEX IF NOT EXISTS idx_membership_user ON family_membership(user_id);
-CREATE INDEX IF NOT EXISTS idx_invite_person ON invite_token(person_id);
-CREATE INDEX IF NOT EXISTS idx_invite_family ON invite_token(family_id);
+CREATE INDEX IF NOT EXISTS idx_share_token_family ON family_share_token(family_id);
 CREATE INDEX IF NOT EXISTS idx_audit_family ON audit_log(family_id);
 CREATE INDEX IF NOT EXISTS idx_relationship_family ON relationship(family_id);

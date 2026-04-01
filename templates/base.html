@@ -54,13 +54,12 @@
                 <span class="utility-pill-label">People</span>
             </a>
             <span class="utility-pill-divider"></span>
-            <a href="{{ url_for('invite_new', fid=current_family.id) }}" class="utility-pill-action utility-pill-muted" aria-label="Invite someone">
+            <a href="{{ url_for('family_settings', fid=current_family.id) }}" class="utility-pill-action utility-pill-muted" aria-label="Share family tree">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                    <circle cx="8.5" cy="7" r="4"/>
-                    <line x1="20" y1="8" x2="20" y2="14"/><line x1="17" y1="11" x2="23" y2="11"/>
+                    <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
                 </svg>
-                <span class="utility-pill-label">Invite</span>
+                <span class="utility-pill-label">Share</span>
             </a>
             {% if is_admin %}
             <span class="utility-pill-divider"></span>
@@ -90,6 +89,20 @@
                 </svg>
                 <span class="utility-pill-label">Logout</span>
             </a>
+        </div>
+        {% endif %}
+
+        {% if view_only and current_family %}
+        <div class="banner banner-view-only">
+            You're viewing this family tree as a guest.
+            {% if share_token %}
+            <a href="{{ url_for('join_register', token=share_token.token) }}">Create an account</a> to become a member.
+            {% endif %}
+        </div>
+        {% elif current_user and current_family and membership and not membership.person_id %}
+        <div class="banner banner-info">
+            You haven't linked your profile to a family member yet.
+            <a href="{{ url_for('link_person', fid=current_family.id) }}">Link now</a>
         </div>
         {% endif %}
 

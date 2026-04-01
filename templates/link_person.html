@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Link Your Profile — {{ current_family.name }}{% endblock %}
+{% block body_class %}page-form{% endblock %}
+
+{% block content %}
+<h2 class="page-title">Link Your Profile</h2>
+
+<div class="form-card">
+    <p>Select yourself from the list below to link your account to your profile in the family tree.</p>
+    {% if unlinked %}
+    <form method="post">
+        {{ csrf_field }}
+        <div class="form-section">
+            <label for="person_id">I am…</label>
+            <select id="person_id" name="person_id" required>
+                <option value="">— Select a person —</option>
+                {% for p in unlinked %}
+                <option value="{{ p.id }}">{{ p.first_name }} {{ p.last_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-actions">
+            <button type="submit">Link Profile</button>
+            <a href="{{ url_for('family_tree', fid=fid) }}" class="btn-ghost">Skip for now</a>
+        </div>
+    </form>
+    {% else %}
+    <p>All people in this tree are already linked to an account, or no people have been added yet.</p>
+    <a href="{{ url_for('family_tree', fid=fid) }}" class="btn-ghost">Back to tree</a>
+    {% endif %}
+</div>
+{% endblock %}

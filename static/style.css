@@ -1345,3 +1345,95 @@ button:hover, [type="submit"]:hover {
         gap: var(--space-xs);
     }
 }
+
+/* ── Banners ── */
+.banner {
+    padding: 0.7rem 1.25rem;
+    font-size: 0.95rem;
+    border-left: 3px solid transparent;
+    text-align: center;
+}
+.banner a {
+    font-weight: 600;
+    text-decoration: underline;
+}
+.banner-view-only {
+    background: rgba(90, 77, 58, 0.07);
+    border-left-color: var(--accent);
+    color: var(--accent);
+}
+.banner-view-only a { color: var(--accent); }
+.banner-info {
+    background: rgba(74, 100, 65, 0.07);
+    border-left-color: #4a6441;
+    color: #3a5032;
+}
+.banner-info a { color: #3a5032; }
+
+/* ── Share link row ── */
+.share-link-row {
+    display: flex;
+    gap: var(--space-sm);
+    align-items: center;
+}
+.share-link-input {
+    flex: 1;
+    font-size: 0.85rem;
+    background: var(--bg-deep);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    padding: 0.45rem 0.7rem;
+    color: var(--text-muted);
+    cursor: text;
+}
+
+/* ── Tab group (join page) ── */
+.tab-group {
+    display: flex;
+    gap: 0;
+    margin-bottom: var(--space-md);
+    border-bottom: 2px solid var(--border-default);
+}
+.tab-btn {
+    background: none;
+    border: none;
+    padding: 0.5rem 1.25rem;
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    font-family: inherit;
+}
+.tab-btn.tab-active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    font-weight: 600;
+}
+
+/* ── Ghost button ── */
+.btn-ghost {
+    display: inline-block;
+    background: none;
+    border: 1px solid var(--border-default);
+    color: var(--text-muted);
+    border-radius: var(--radius-sm);
+    padding: 0.55rem 1.25rem;
+    font-size: 0.95rem;
+    text-decoration: none;
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color 0.15s, color 0.15s;
+}
+.btn-ghost:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* ── Form actions row ── */
+.form-actions {
+    display: flex;
+    gap: var(--space-sm);
+    align-items: center;
+    margin-top: var(--space-md);
+}

@@ -4,6 +4,7 @@
   if (!container) return;
 
   const familyId = container.dataset.familyId;
+  const viewOnly = container.dataset.viewOnly === 'true';
   const width = container.clientWidth;
   const height = container.clientHeight;
 
@@ -368,7 +369,7 @@
         })
         .on("end", function() {
           d3.select(this).style("cursor", "grab");
-          if (!hasDragged) {
+          if (!hasDragged && !viewOnly) {
             window.location.href = "/family/" + familyId + "/person/" + id + "/edit";
           }
         });

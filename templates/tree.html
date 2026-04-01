@@ -6,10 +6,14 @@
 
 {% block content %}
 {% if people %}
-<div id="tree-container" data-family-id="{{ fid }}"></div>
+<div id="tree-container" data-family-id="{{ fid }}" data-view-only="{{ 'true' if view_only else 'false' }}"></div>
 {% else %}
 <div class="empty-state tree-empty">
+    {% if view_only %}
+    This family tree has no people yet.
+    {% else %}
     No people in this family yet. <a href="{{ url_for('person_new', fid=fid) }}">Add someone</a> to get started.
+    {% endif %}
 </div>
 {% endif %}
 {% endblock %}
