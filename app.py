@@ -306,6 +306,21 @@ def settings():
         flash('Settings saved.', 'success')
         return redirect(url_for('settings'))
 
+    # Load family context from ?fid so header pill shows nav tabs
+    fid = request.args.get('fid')
+    if fid:
+        db = get_db()
+        family = db.execute("SELECT * FROM family WHERE id = ?", (fid,)).fetchone()
+        if family:
+            membership = db.execute(
+                "SELECT * FROM family_membership WHERE user_id = ? AND family_id = ?",
+                (session['user_id'], fid),
+            ).fetchone()
+            if membership:
+                g.family = family
+                g.membership = membership
+                g.is_admin = membership['role'] == 'admin'
+
     return render_template('settings.html')
 
 
