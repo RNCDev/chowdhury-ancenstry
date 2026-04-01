@@ -1017,6 +1017,10 @@ button:hover, [type="submit"]:hover {
     z-index: 0;
 }
 
+@media (max-width: 599px) {
+    #vine-canvas { opacity: 0.6; }
+}
+
 .page-login main.container {
     position: relative;
     z-index: 1;

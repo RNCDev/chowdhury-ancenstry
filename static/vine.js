@@ -5,6 +5,8 @@
   const off       = offscreen.getContext('2d');
 
   let W, H, vines = [], foliageClusters = [], animStart = 0, loopDuration = 14000;
+  let rafId = null;
+  let lastW = 0;
 
   const PEAK_ALPHA    = 0.22;
   const HOLD_DURATION = 4000;
@@ -22,6 +24,8 @@
     [ 92, 110, 60],   // muted forest green
     [162,  82, 55],   // faded rust
   ];
+
+  function isMobile() { return window.innerWidth < 600; }
 
   class RNG {
     constructor(s) { this.s = s >>> 0; }
@@ -224,7 +228,7 @@
     vines = [];
     foliageClusters = [];
 
-    const seeds = [
+    const allSeeds = [
       { x: 0,        y: H,        a: -Math.PI * 0.32, depth: 8, seed: 101 },
       { x: W,        y: H,        a: -Math.PI * 0.68, depth: 8, seed: 202 },
       { x: W * 0.18, y: H,        a: -Math.PI * 0.38, depth: 7, seed: 303, delay: 300 },
@@ -242,6 +246,11 @@
       { x: W,        y: H * 0.42, a: -Math.PI * 0.92, depth: 5, seed: 1515, delay: 750 },
       { x: W * 0.50, y: H,        a: -Math.PI * 0.36, depth: 5, seed: 1616, delay: 650 },
     ];
+
+    // On mobile use only the 4 corner/edge seeds at reduced depth to avoid clutter
+    const seeds = isMobile()
+      ? [allSeeds[0], allSeeds[1], allSeeds[11], allSeeds[12]].map(s => ({ ...s, depth: Math.min(s.depth, 4) }))
+      : allSeeds;
 
     const epoch = (Math.random() * 0xFFFFFFFF) >>> 0;
     for (const s of seeds) {
@@ -265,7 +274,7 @@
 
     let alpha = PEAK_ALPHA;
     if (elapsed >= fadeStart) {
-      if (elapsed >= totalCycle) { buildVines(); animStart = ts; requestAnimationFrame(draw); return; }
+      if (elapsed >= totalCycle) { buildVines(); animStart = ts; rafId = requestAnimationFrame(draw); return; }
       alpha = PEAK_ALPHA * (1 - (elapsed - fadeStart) / FADE_DURATION);
     }
 
@@ -273,17 +282,34 @@
     ctx.drawImage(offscreen, 0, 0);
     ctx.globalAlpha = 1;
 
-    requestAnimationFrame(draw);
+    rafId = requestAnimationFrame(draw);
   }
 
   function resize() {
+    const newW = window.innerWidth;
+    const widthChanged = newW !== lastW;
+    lastW = newW;
+
     W = canvas.width  = offscreen.width  = window.innerWidth;
     H = canvas.height = offscreen.height = window.innerHeight;
-    buildVines();
-    animStart = performance.now();
-    requestAnimationFrame(draw);
+
+    if (widthChanged) buildVines();
+    if (!rafId) { animStart = performance.now(); rafId = requestAnimationFrame(draw); }
   }
 
   window.addEventListener('resize', resize);
+
+  // Pause animation while user is typing — reduces paint pressure on mobile
+  document.addEventListener('focusin', e => {
+    if (e.target.matches('input, textarea, select')) {
+      if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    }
+  });
+  document.addEventListener('focusout', e => {
+    if (e.target.matches('input, textarea, select')) {
+      if (!rafId) { animStart = performance.now(); rafId = requestAnimationFrame(draw); }
+    }
+  });
+
   resize();
 })();
