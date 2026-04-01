@@ -118,17 +118,17 @@ Two-column grid that collapses to single column below 768px. Each column is a ca
 ### Flash Messages
 Left-border accent (3px). Error: `--color-error-bg` background, `--color-error` border. Success: `--color-success-bg` background, `--color-success` border. Radius `--radius-sm`.
 
-### Back Arrow
-Fixed top-left on inner pages (form, detail, list). SVG chevron-left icon, links to tree (home). `--text-muted` color, hover `--text-primary`. Hidden on tree page and login page via `.page-tree .back-arrow, .page-login .back-arrow { display: none; }`. Every interior template must set a `body_class` block.
+### Header Pill (`.header-pill`)
+Fixed centered floating nav bar at top of every authenticated page. `--bg-card` background, 24px border-radius, soft shadow. Three zones: **brand** (tree icon + family name), **nav tabs** (Tree / People / Settings as pill-shaped links), **user** (avatar initial → profile, logout icon). Active tab uses `--accent` background with `--bg-page` text. Hidden on login/register/join pages (`.page-login .header-pill { display: none }`). On mobile (≤480px), family name hides — only tree icon remains; tab labels stay visible.
 
-### Utility Pill
-Fixed top-right with `--space-xl` padding from edge. `--bg-card` background, `--border-default` border, `--radius-sm`, `--shadow-sm`. Contains "Add Person" (icon + label) and a muted logout icon, separated by a thin divider. On mobile (< 480px), the "Add Person" label hides, leaving just the icon. Hidden on login page.
+### Share FAB (`.share-fab`)
+Fixed bottom-right floating button on Tree and People pages. `--accent` background, pill shape with share icon + "Share" label. Copies the family share link to clipboard on click, shows a toast. On mobile (≤480px), collapses to a 44px icon-only circle. Only visible when a share token exists and user is not a guest.
 
 ## Layout Rules
 
 - `main.container`: max-width 960px, centered, `--space-xl` vertical / `--space-lg` horizontal padding
 - Tree page: full-bleed (overrides container to full width, no padding)
-- No top nav bar — navigation is via back arrow (inner pages) and FAB (global actions)
+- Navigation is via the floating header pill (persistent on all authenticated pages)
 - Use CSS Grid and Flexbox — no float hacks
 - Responsive breakpoints: 768px (detail layout), 600px (form grids), 480px (relationship form)
 
