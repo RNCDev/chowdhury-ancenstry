@@ -189,6 +189,63 @@ body {
     }
 }
 
+/* ── Share FAB ── */
+.share-fab {
+    position: fixed;
+    bottom: var(--space-lg);
+    right: var(--space-lg);
+    background: var(--accent);
+    color: var(--bg-page);
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: var(--shadow-md);
+    cursor: pointer;
+    text-decoration: none;
+    z-index: 90;
+    transition: background 0.15s;
+}
+
+.share-fab:hover {
+    background: var(--accent-hover);
+    color: var(--bg-page);
+}
+
+@media (max-width: 480px) {
+    .share-fab {
+        width: 44px;
+        height: 44px;
+        padding: 0;
+        border-radius: 50%;
+        justify-content: center;
+    }
+    .share-fab-label { display: none; }
+}
+
+/* ── Toast notification ── */
+.toast-copied {
+    position: fixed;
+    bottom: calc(var(--space-lg) + 52px);
+    right: var(--space-lg);
+    background: var(--color-success);
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: var(--radius-sm);
+    font-size: 0.875rem;
+    font-weight: 500;
+    z-index: 200;
+    animation: toast-fade 2s ease forwards;
+}
+
+@keyframes toast-fade {
+    0%, 70% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
 /* ── Layout ── */
 main.container {
     max-width: 960px;

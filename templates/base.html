@@ -84,5 +84,23 @@
 
         {% block scripts %}{% endblock %}
 
+        <script>
+        document.addEventListener('click', function(e) {
+            var fab = e.target.closest('.share-fab');
+            if (!fab) return;
+            var url = fab.dataset.shareUrl;
+            if (url && navigator.clipboard) {
+                e.preventDefault();
+                navigator.clipboard.writeText(url).then(function() {
+                    var toast = document.createElement('div');
+                    toast.className = 'toast-copied';
+                    toast.textContent = 'Link copied!';
+                    document.body.appendChild(toast);
+                    setTimeout(function() { toast.remove(); }, 2000);
+                });
+            }
+        });
+        </script>
+
     </body>
 </html>
