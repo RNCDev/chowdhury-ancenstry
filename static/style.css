@@ -61,30 +61,133 @@ body {
     color: var(--text-body);
 }
 
-/* ── Back arrow ── */
-.back-arrow {
+/* ── Header pill navigation ── */
+.header-pill {
     position: fixed;
     top: var(--space-md);
-    left: var(--space-md);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-card);
+    border-radius: 24px;
+    padding: 6px 8px 6px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 8px rgba(90, 62, 40, 0.1);
     z-index: 100;
+    max-width: 700px;
+    width: calc(100% - 2rem);
+}
+
+.header-pill-brand {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    flex-shrink: 0;
+}
+
+.header-pill-icon {
+    color: var(--text-primary);
+}
+
+.header-pill-family-name {
+    font-weight: 700;
+    font-size: 0.9375rem;
+    color: var(--text-primary);
+}
+
+.header-pill-nav {
+    display: flex;
+    gap: 4px;
+    padding: 0 var(--space-md);
+}
+
+.header-pill-tab {
+    padding: 6px 14px;
+    border-radius: 16px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-body);
+    text-decoration: none;
+    transition: background 0.15s, color 0.15s;
+}
+
+.header-pill-tab:hover {
+    background: var(--bg-hover);
+}
+
+.header-pill-tab.active {
+    background: var(--accent);
+    color: var(--bg-page);
+    font-weight: 600;
+}
+
+.header-pill-user {
+    display: flex;
+    gap: var(--space-sm);
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.header-pill-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--bg-hover);
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 44px;
-    height: 44px;
-    border-radius: var(--radius-sm);
+    font-size: 0.8125rem;
+    color: var(--text-body);
+    font-weight: 600;
+    text-decoration: none;
+    transition: background 0.15s;
+}
+
+.header-pill-avatar:hover {
+    background: var(--border-default);
+}
+
+.header-pill-logout {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     color: var(--text-muted);
     text-decoration: none;
     transition: color 0.15s, background 0.15s;
 }
 
-.back-arrow:hover {
-    color: var(--text-primary);
+.header-pill-logout:hover {
+    color: var(--text-body);
     background: var(--bg-hover);
 }
 
-.page-tree .back-arrow,
-.page-login .back-arrow { display: none; }
+/* Login, register, and join pages all use body class page-login */
+.page-login .header-pill { display: none; }
+
+@media (max-width: 480px) {
+    .header-pill {
+        width: calc(100% - var(--space-md));
+        padding: 4px 6px 4px 10px;
+    }
+    .header-pill-family-name { display: none; }
+    .header-pill-tab {
+        padding: 5px 10px;
+        font-size: 0.8125rem;
+    }
+    .header-pill-avatar {
+        width: 28px;
+        height: 28px;
+        font-size: 0.75rem;
+    }
+    .header-pill-logout {
+        width: 28px;
+        height: 28px;
+    }
+}
 
 /* ── Layout ── */
 main.container {
@@ -96,6 +199,7 @@ main.container {
 .page-tree main.container {
     max-width: none;
     padding: 0;
+    padding-top: calc(56px + var(--space-md));
     margin: 0;
 }
 
@@ -120,97 +224,6 @@ main.container {
     font-size: 1rem;
 }
 
-/* ── Utility pill (top-right) ── */
-.utility-pill {
-    position: fixed;
-    top: var(--space-lg);
-    right: var(--space-xl);
-    z-index: 100;
-    display: flex;
-    align-items: center;
-    gap: 0;
-    background: var(--bg-card);
-    border: 1px solid var(--border-default);
-    border-radius: 24px;
-    box-shadow: var(--shadow-sm);
-    padding: var(--space-xs);
-}
-
-.utility-pill-action {
-    display: flex;
-    align-items: center;
-    gap: var(--space-xs);
-    padding: var(--space-sm) var(--space-md);
-    min-height: 44px;
-    border-radius: 20px;
-    border: none;
-    background: transparent;
-    color: var(--text-body);
-    text-decoration: none;
-    font-family: inherit;
-    font-size: 0.9rem;
-    font-weight: 600;
-    white-space: nowrap;
-    cursor: pointer;
-    transition: background 0.15s, color 0.15s;
-}
-
-.utility-pill-action:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
-}
-
-.utility-pill-action svg {
-    flex-shrink: 0;
-}
-
-.utility-pill-muted {
-    color: var(--text-muted);
-    padding: var(--space-sm) var(--space-md);
-}
-
-.utility-pill-muted:hover {
-    color: var(--text-body);
-}
-
-.utility-pill-divider {
-    width: 1px;
-    height: 20px;
-    background: var(--border-default);
-    margin: 0 var(--space-xs);
-}
-
-.utility-pill-label {
-    display: inline;
-}
-
-@media (max-width: 480px) {
-    /* Keep labels visible even on small screens — important for older users */
-    .utility-pill {
-        right: var(--space-sm);
-        top: var(--space-sm);
-    }
-    .utility-pill-action {
-        padding: var(--space-xs) var(--space-sm);
-        font-size: 0.8rem;
-    }
-}
-
-.page-login .utility-pill { display: none; }
-.page-login .app-version { display: none; }
-
-/* ── Version label ── */
-.app-version {
-    position: fixed;
-    top: calc(var(--space-lg) + 52px);
-    right: var(--space-xl);
-    font-size: 0.7rem;
-    color: var(--text-placeholder);
-    letter-spacing: 0.04em;
-    pointer-events: none;
-    z-index: 99;
-    text-align: right;
-}
 
 /* ── History modal ── */
 .modal-backdrop {
@@ -1006,8 +1019,6 @@ button:hover, [type="submit"]:hover {
     overflow: hidden;
 }
 
-.page-login .back-arrow { display: none; }
-
 #vine-canvas {
     position: fixed;
     inset: 0;
@@ -1139,12 +1150,12 @@ button:hover, [type="submit"]:hover {
     text-align: left;
 }
 
-/* ── Utility: inner pages need top padding for back arrow clearance ── */
+/* ── Inner pages need top padding for header pill clearance ── */
 .page-form main.container,
 .page-list main.container,
 .page-dashboard main.container,
 .page-settings main.container {
-    padding-top: calc(var(--space-xl) + 24px);
+    padding-top: calc(56px + var(--space-xl));
 }
 
 /* ── Login alt link ── */
@@ -1261,9 +1272,6 @@ button:hover, [type="submit"]:hover {
     gap: 2px;
     margin-bottom: var(--space-lg);
 }
-
-/* ── Dashboard back arrow hidden ── */
-.page-dashboard .back-arrow { display: none; }
 
 /* ── Utility: stacked form cards get top margin ── */
 .form-card + .form-card { margin-top: var(--space-lg); }
