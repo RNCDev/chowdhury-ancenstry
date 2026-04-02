@@ -6,3 +6,7 @@ __pycache__/
 .superpowers/
 .worktrees/
 docs/superpowers/
+node_modules/
+package.json
+package-lock.json
+.vscode/
