@@ -84,6 +84,8 @@
 
         {% block scripts %}{% endblock %}
 
+        <span class="version-label">v{{ app_version }}</span>
+
         <script>
         document.addEventListener('click', function(e) {
             var fab = e.target.closest('.share-fab');

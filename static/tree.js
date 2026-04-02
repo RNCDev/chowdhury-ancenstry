@@ -143,13 +143,9 @@
 
     // --- Generational layout ---
 
-    // Step 1: assign generation to each person
-    // A person's generation = max(parent generations) + 1; parentless = 0
+    // Step 1: assign generation to each person via iterative relaxation
     var gen = {};
     var personIds = data.nodes.map(function(p) { return p.id; });
-
-    // We need to resolve generations respecting parent->child order.
-    // Use iterative relaxation (handles any DAG).
     personIds.forEach(function(id) { gen[id] = 0; });
 
     var changed = true;
@@ -160,7 +156,6 @@
       data.edges.forEach(function(e) {
         var fromId = e.from;
         var childId = e.child;
-        // resolve parent generation: if from is a union, use the max of the two parents
         var parentGen;
         if (typeof fromId === 'string' && fromId.startsWith('union_')) {
           var u = unionByUid[fromId];
@@ -175,89 +170,321 @@
       });
     }
 
-    // Step 2: group people by generation
+    // Step 2: group by generation
     var byGen = {};
     personIds.forEach(function(id) {
       var g_ = gen[id] || 0;
       if (!byGen[g_]) byGen[g_] = [];
       byGen[g_].push(id);
     });
-
-    // Step 3: order within each generation — sort by average parent x (computed iteratively)
-    // For gen 0, keep insertion order. For later gens, sort by parent position.
     var sortedGens = Object.keys(byGen).map(Number).sort(function(a, b) { return a - b; });
 
-    // Step 4: assign x positions
-    // Strategy: for each generation, space nodes out. Married couples are placed adjacent.
-    // We'll place nodes left-to-right, skipping a slot for spouse adjacency.
+    // Step 3: build "family groups" — clusters of people connected by marriage
+    // Each group = a set of people in the same generation linked by spouse edges.
+    // Within a group, we keep a canonical order: the "primary" person (most children
+    // or first encountered) in the center, spouses flanking.
 
     var SLOT = NODE_WIDTH + H_GAP;
 
-    // Track which people have been x-positioned already (spouses placed inline)
-    var xAssigned = {};
-    var tempX = {};  // id → x (in slot units, before centering)
+    // Build adjacency for same-gen spouses
+    function sameGenSpouses(id) {
+      return (spousesOf[id] || []).filter(function(sid) { return gen[sid] === gen[id]; });
+    }
 
-    sortedGens.forEach(function(g_) {
-      var members = byGen[g_].slice();
+    // Build family groups per generation using union-find
+    function buildFamilyGroups(members) {
+      var parent = {};
+      members.forEach(function(id) { parent[id] = id; });
+      function find(x) { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; }
+      function unite(a, b) { parent[find(a)] = find(b); }
 
-      // Sort members by their parents' x to reduce edge crossings
-      members.sort(function(a, b) {
-        var ax = _parentX(a);
-        var bx = _parentX(b);
-        return ax - bx;
-      });
-
-      // Assign slots, placing spouses adjacent
-      var slots = [];
-      var placed = {};
       members.forEach(function(id) {
-        if (placed[id]) return;
-        slots.push(id);
-        placed[id] = true;
-        // If this person has a spouse in the same generation, place them next
-        (spousesOf[id] || []).forEach(function(sid) {
-          if (gen[sid] === g_ && !placed[sid]) {
-            slots.push(sid);
-            placed[sid] = true;
-          }
+        sameGenSpouses(id).forEach(function(sid) {
+          if (parent[sid] !== undefined) unite(id, sid);
         });
       });
 
-      // Assign x
-      var startSlot = 0;
-      slots.forEach(function(id) {
-        tempX[id] = startSlot;
-        startSlot++;
+      var groups = {};
+      members.forEach(function(id) {
+        var root = find(id);
+        if (!groups[root]) groups[root] = [];
+        groups[root].push(id);
+      });
+      return Object.values(groups);
+    }
+
+    // Order members within a family group: pick the person with the most children
+    // as "primary", place them with their spouses adjacent
+    function orderGroup(group) {
+      if (group.length === 1) return group;
+
+      // Find the person who has children with the most different partners (primary)
+      var childCount = {};
+      group.forEach(function(id) {
+        var count = 0;
+        for (var uid in unionByUid) {
+          var u = unionByUid[uid];
+          if (u.p1 === id || u.p2 === id) {
+            count += (childrenOf[uid] || []).length;
+          }
+        }
+        childCount[id] = count;
+      });
+
+      // Sort: primary (most children) first, then their spouses in order
+      var sorted = group.slice().sort(function(a, b) { return childCount[b] - childCount[a]; });
+      var primary = sorted[0];
+
+      // BFS from primary along spouse edges to get ordered chain
+      var visited = {};
+      var ordered = [];
+      var queue = [primary];
+      visited[primary] = true;
+      while (queue.length > 0) {
+        var cur = queue.shift();
+        ordered.push(cur);
+        sameGenSpouses(cur).forEach(function(sid) {
+          if (!visited[sid] && group.indexOf(sid) >= 0) {
+            visited[sid] = true;
+            queue.push(sid);
+          }
+        });
+      }
+      // Add any unvisited (shouldn't happen but safety)
+      group.forEach(function(id) { if (!visited[id]) ordered.push(id); });
+      return ordered;
+    }
+
+    // Step 4: bottom-up width calculation, top-down placement
+    // First pass: compute subtree widths. A "subtree" under a union = its children's subtrees.
+    // We work bottom-up by generation.
+
+    // For each person, compute how many slots wide their subtree is.
+    // A person with no children: width = 1
+    // A couple (union): width = max(sum of children widths, couple width which is 2 or 3)
+    // A person with multiple spouses: each union contributes its children width,
+    //   total = sum of all union child widths + the person + spouses, whichever is larger.
+
+    var subtreeWidth = {};  // id → width in slots
+
+    // Process generations bottom-up
+    var reversedGens = sortedGens.slice().reverse();
+
+    reversedGens.forEach(function(g_) {
+      var groups = buildFamilyGroups(byGen[g_]);
+      groups.forEach(function(group) {
+        // Compute each person's descendant width
+        group.forEach(function(id) {
+          // Find all unions this person is part of
+          var totalChildWidth = 0;
+          var counted = {};
+          data.unions.forEach(function(u) {
+            if (u.p1 !== id && u.p2 !== id) return;
+            var kids = childrenOf[u.uid] || [];
+            kids.forEach(function(kid) {
+              if (!counted[kid]) {
+                counted[kid] = true;
+                totalChildWidth += (subtreeWidth[kid] || 1);
+              }
+            });
+          });
+          // Also count children from single-parent edges
+          for (var fromId in childrenOf) {
+            if (parseInt(fromId) === id) {
+              (childrenOf[fromId] || []).forEach(function(kid) {
+                if (!counted[kid]) {
+                  counted[kid] = true;
+                  totalChildWidth += (subtreeWidth[kid] || 1);
+                }
+              });
+            }
+          }
+          subtreeWidth[id] = Math.max(1, totalChildWidth);
+        });
+
+        // The group's total width = max(sum of member slots, sum of descendant widths)
+        var groupOrder = orderGroup(group);
+        var descendantWidth = 0;
+        var countedKids = {};
+        groupOrder.forEach(function(id) {
+          data.unions.forEach(function(u) {
+            if (u.p1 !== id && u.p2 !== id) return;
+            (childrenOf[u.uid] || []).forEach(function(kid) {
+              if (!countedKids[kid]) {
+                countedKids[kid] = true;
+                descendantWidth += (subtreeWidth[kid] || 1);
+              }
+            });
+          });
+          for (var fromId in childrenOf) {
+            if (parseInt(fromId) === id) {
+              (childrenOf[fromId] || []).forEach(function(kid) {
+                if (!countedKids[kid]) {
+                  countedKids[kid] = true;
+                  descendantWidth += (subtreeWidth[kid] || 1);
+                }
+              });
+            }
+          }
+        });
+
+        var groupWidth = Math.max(groupOrder.length, descendantWidth);
+        // Assign this width to each member so parent lookups work
+        groupOrder.forEach(function(id) {
+          subtreeWidth[id] = groupWidth / groupOrder.length;
+        });
       });
     });
 
-    function _parentX(id) {
-      var fromId = parentsOf[id];
-      if (!fromId) return 0;
-      if (typeof fromId === 'string' && fromId.startsWith('union_')) {
-        var u = unionByUid[fromId];
-        if (!u) return 0;
-        var x1 = tempX[u.p1] !== undefined ? tempX[u.p1] : 0;
-        var x2 = tempX[u.p2] !== undefined ? tempX[u.p2] : 0;
-        return (x1 + x2) / 2;
-      }
-      return tempX[fromId] !== undefined ? tempX[fromId] : 0;
+    // Step 5: top-down x assignment
+    // For the root generation, lay out groups left to right.
+    // For each group, center members, then place children centered under their parent union.
+
+    var tempX = {};  // id → x in slot units
+
+    function placeGroup(group, leftSlot) {
+      var ordered = orderGroup(group);
+      // Compute total width needed for this group's descendants
+      var totalDescWidth = 0;
+      var countedKids = {};
+      ordered.forEach(function(id) {
+        data.unions.forEach(function(u) {
+          if (u.p1 !== id && u.p2 !== id) return;
+          (childrenOf[u.uid] || []).forEach(function(kid) {
+            if (!countedKids[kid]) {
+              countedKids[kid] = true;
+              totalDescWidth += (subtreeWidth[kid] || 1);
+            }
+          });
+        });
+        for (var fromId in childrenOf) {
+          if (parseInt(fromId) === id) {
+            (childrenOf[fromId] || []).forEach(function(kid) {
+              if (!countedKids[kid]) {
+                countedKids[kid] = true;
+                totalDescWidth += (subtreeWidth[kid] || 1);
+              }
+            });
+          }
+        }
+      });
+
+      var groupWidth = Math.max(ordered.length, totalDescWidth);
+      var centerX = leftSlot + groupWidth / 2;
+
+      // Place group members centered
+      var memberStart = centerX - ordered.length / 2;
+      ordered.forEach(function(id, i) {
+        tempX[id] = memberStart + i + 0.5;
+      });
+
+      return groupWidth;
     }
 
-    // Convert slot positions to pixel positions, centering each generation
-    sortedGens.forEach(function(g_) {
-      var members = byGen[g_];
-      var slots = members.map(function(id) { return tempX[id]; });
-      var minSlot = Math.min.apply(null, slots);
-      var maxSlot = Math.max.apply(null, slots);
-      var totalWidth = (maxSlot - minSlot) * SLOT;
-      var startX = width / 2 - totalWidth / 2;
+    // Root generation: lay out all groups
+    if (sortedGens.length > 0) {
+      var rootGen = sortedGens[0];
+      var rootGroups = buildFamilyGroups(byGen[rootGen]);
 
-      members.forEach(function(id) {
-        var px = startX + (tempX[id] - minSlot) * SLOT;
-        var py = 80 + g_ * V_GAP;
-        nodePositions[id] = { x: px, y: py };
+      // Sort root groups by size (largest first for center placement)
+      // Actually keep them in data order for stability
+      var cursor = 0;
+      rootGroups.forEach(function(group) {
+        var usedWidth = placeGroup(group, cursor);
+        cursor += usedWidth + 1;  // +1 gap between unrelated groups
       });
+
+      // Now place children generation by generation
+      sortedGens.forEach(function(g_) {
+        // For each union or single parent in this generation, place their children
+        var alreadyPlaced = {};
+
+        // Collect all parent→children relationships from this generation
+        var parentSources = [];
+        data.unions.forEach(function(u) {
+          if ((gen[u.p1] === g_ || gen[u.p2] === g_) && (childrenOf[u.uid] || []).length > 0) {
+            parentSources.push({ fromId: u.uid, p1: u.p1, p2: u.p2 });
+          }
+        });
+        // Single-parent edges
+        byGen[g_].forEach(function(id) {
+          if (childrenOf[id]) {
+            parentSources.push({ fromId: id, p1: id, p2: null });
+          }
+        });
+
+        // Sort by parent x position
+        parentSources.sort(function(a, b) {
+          var ax = (tempX[a.p1] || 0) + (a.p2 ? (tempX[a.p2] || 0) : (tempX[a.p1] || 0));
+          var bx = (tempX[b.p1] || 0) + (b.p2 ? (tempX[b.p2] || 0) : (tempX[b.p1] || 0));
+          return ax - bx;
+        });
+
+        parentSources.forEach(function(ps) {
+          var kids = (childrenOf[ps.fromId] || []).filter(function(k) { return !alreadyPlaced[k]; });
+          if (kids.length === 0) return;
+
+          // Center children under the midpoint of parents
+          var parentMidX;
+          if (ps.p2 !== null) {
+            parentMidX = ((tempX[ps.p1] || 0) + (tempX[ps.p2] || 0)) / 2;
+          } else {
+            parentMidX = tempX[ps.p1] || 0;
+          }
+
+          var totalChildWidth = 0;
+          kids.forEach(function(kid) {
+            var kidGroup = [kid];
+            sameGenSpouses(kid).forEach(function(sid) {
+              if (kidGroup.indexOf(sid) < 0) kidGroup.push(sid);
+            });
+            var w = Math.max(subtreeWidth[kid] || 1, kidGroup.length);
+            totalChildWidth += w;
+          });
+
+          var childLeft = parentMidX - totalChildWidth / 2;
+          var childCursor = childLeft;
+
+          kids.forEach(function(kid) {
+            var kidGroup = [kid];
+            sameGenSpouses(kid).forEach(function(sid) {
+              if (kidGroup.indexOf(sid) < 0) kidGroup.push(sid);
+            });
+            var w = Math.max(subtreeWidth[kid] || 1, kidGroup.length);
+            placeGroup(kidGroup, childCursor);
+            alreadyPlaced[kid] = true;
+            kidGroup.forEach(function(sid) { alreadyPlaced[sid] = true; });
+            childCursor += w;
+          });
+        });
+      });
+    }
+
+    // Overlap resolution: nudge nodes in same generation that overlap
+    sortedGens.forEach(function(g_) {
+      var members = byGen[g_].slice();
+      members.sort(function(a, b) { return (tempX[a] || 0) - (tempX[b] || 0); });
+      for (var i = 1; i < members.length; i++) {
+        var prev = members[i - 1];
+        var cur = members[i];
+        var minGap = 1;  // minimum 1 slot apart
+        if ((tempX[cur] || 0) - (tempX[prev] || 0) < minGap) {
+          tempX[cur] = (tempX[prev] || 0) + minGap;
+        }
+      }
+    });
+
+    // Convert slot positions to pixel positions, centering the whole tree
+    var allX = personIds.map(function(id) { return tempX[id] || 0; });
+    var globalMinX = Math.min.apply(null, allX);
+    var globalMaxX = Math.max.apply(null, allX);
+    var globalWidth = (globalMaxX - globalMinX) * SLOT;
+    var globalStartX = width / 2 - globalWidth / 2;
+
+    personIds.forEach(function(id) {
+      var px = globalStartX + ((tempX[id] || 0) - globalMinX) * SLOT;
+      var py = 80 + (gen[id] || 0) * V_GAP;
+      nodePositions[id] = { x: px, y: py };
     });
 
     // Position union dots
