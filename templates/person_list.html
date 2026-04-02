@@ -52,7 +52,7 @@
 
 <div class="people-list">
     {% for p in people %}
-    <a href="{{ url_for('person_edit', fid=fid, person_id=p.id) }}" class="person-row">
+    <{% if view_only %}div{% else %}a href="{{ url_for('person_edit', fid=fid, person_id=p.id) }}"{% endif %} class="person-row">
         <div class="person-row-name">
             {{ p.first_name }}{% if p.middle_name %} {{ p.middle_name }}{% endif %} {{ p.last_name }}
             {% if p.status == 'stub' %}<span class="badge-pending">pending</span>{% endif %}
@@ -65,10 +65,12 @@
             <span class="person-row-tag">{{ p.place_of_birth }}</span>
             {% endif %}
         </div>
+        {% if not view_only %}
         <svg class="person-row-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="9 18 15 12 9 6"/>
         </svg>
-    </a>
+        {% endif %}
+    </{% if view_only %}div{% else %}a{% endif %}>
     {% endfor %}
 </div>
 {% else %}

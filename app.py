@@ -1,6 +1,7 @@
 import os
 import secrets
-from collections import defaultdict
+import time
+from collections import defaultdict, deque
 from datetime import datetime
 from functools import wraps
 
@@ -16,7 +17,8 @@ from db import DATABASE, close_db, get_db, init_db
 app = Flask(__name__)
 app.teardown_appcontext(close_db)
 
-APP_VERSION = "0.9.5"
+APP_VERSION = "0.9.6"
+SHARE_TOKEN_MAX_AGE_DAYS = 30
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
@@ -120,7 +122,7 @@ def family_view_required(f):
 
         # Not logged in or not a member — check session view access
         view_access = session.get('family_view_access', {})
-        if str(fid) in view_access or fid in view_access:
+        if (str(fid) in view_access or fid in view_access) and share and not _token_expired(share):
             g.membership = None
             g.is_admin = False
             g.view_only = True
@@ -171,6 +173,25 @@ def csrf_protect():
             abort(403)
 
 
+# --- Rate limiting ---
+
+_rate_limit_store = defaultdict(deque)  # key -> deque of timestamps
+_RATE_LIMIT_MAX = 10  # max attempts
+_RATE_LIMIT_WINDOW = 300  # per 5 minutes
+
+
+def _rate_limited(key):
+    """Return True if key has exceeded the rate limit."""
+    now = time.monotonic()
+    attempts = _rate_limit_store[key]
+    while attempts and attempts[0] < now - _RATE_LIMIT_WINDOW:
+        attempts.popleft()
+    if len(attempts) >= _RATE_LIMIT_MAX:
+        return True
+    attempts.append(now)
+    return False
+
+
 def _audit(db, action, entity_type, entity_id, description, family_id=None):
     user_id = session.get('user_id')
     db.execute(
@@ -186,6 +207,10 @@ def register():
     if session.get('user_id'):
         return redirect(url_for('dashboard'))
     if request.method == 'POST':
+        ip = request.remote_addr or 'unknown'
+        if _rate_limited(f'register:{ip}'):
+            flash('Too many attempts. Please try again later.', 'error')
+            return render_template('register.html', username='', display_name='')
         username = request.form.get('username', '').strip()
         display_name = request.form.get('display_name', '').strip() or None
         password = request.form.get('password', '')
@@ -213,6 +238,7 @@ def register():
         )
         db.commit()
         user_id = cursor.lastrowid
+        session.clear()
         session['user_id'] = user_id
         flash('Account created!', 'success')
         return redirect(url_for('dashboard'))
@@ -224,11 +250,16 @@ def login():
     if session.get('user_id'):
         return redirect(url_for('dashboard'))
     if request.method == 'POST':
+        ip = request.remote_addr or 'unknown'
+        if _rate_limited(f'login:{ip}'):
+            flash('Too many attempts. Please try again later.', 'error')
+            return render_template('login.html', username='')
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
         db = get_db()
         user = db.execute("SELECT * FROM user WHERE username = ?", (username,)).fetchone()
         if user and check_password_hash(user['password_hash'], password):
+            session.clear()
             session['user_id'] = user['id']
             return redirect(url_for('dashboard'))
         flash('Invalid username or password.', 'error')
@@ -390,7 +421,8 @@ def api_tree(fid):
 
 
 @app.route('/family/<int:fid>/api/history')
-@family_view_required
+@login_required
+@family_access_required()
 def api_history(fid):
     db = get_db()
     rows = db.execute(
@@ -432,17 +464,30 @@ def person_list(fid):
 
     db = get_db()
     if search:
-        query = f"""
-            SELECT * FROM person
-            WHERE family_id = ? AND (
-                first_name LIKE ? OR middle_name LIKE ? OR last_name LIKE ?
-                OR birth_name_first LIKE ? OR birth_name_last LIKE ?
-                OR place_of_birth LIKE ? OR email LIKE ?
-            )
-            {order_sql}
-        """
-        like = f'%{search}%'
-        people = db.execute(query, (fid, like, like, like, like, like, like, like)).fetchall()
+        if g.get('view_only'):
+            query = f"""
+                SELECT * FROM person
+                WHERE family_id = ? AND (
+                    first_name LIKE ? OR middle_name LIKE ? OR last_name LIKE ?
+                    OR birth_name_first LIKE ? OR birth_name_last LIKE ?
+                    OR place_of_birth LIKE ?
+                )
+                {order_sql}
+            """
+            like = f'%{search}%'
+            people = db.execute(query, (fid, like, like, like, like, like, like)).fetchall()
+        else:
+            query = f"""
+                SELECT * FROM person
+                WHERE family_id = ? AND (
+                    first_name LIKE ? OR middle_name LIKE ? OR last_name LIKE ?
+                    OR birth_name_first LIKE ? OR birth_name_last LIKE ?
+                    OR place_of_birth LIKE ? OR email LIKE ?
+                )
+                {order_sql}
+            """
+            like = f'%{search}%'
+            people = db.execute(query, (fid, like, like, like, like, like, like, like)).fetchall()
     else:
         people = db.execute(f"SELECT * FROM person WHERE family_id = ? {order_sql}", (fid,)).fetchall()
     return render_template('person_list.html', people=people, search=search,
@@ -492,11 +537,11 @@ def _rel_display_label(rel_type, person1_id, current_person_id):
     return rel_type
 
 
-def _person_is_linked(person_id):
-    """Check if a person is already linked to a user account."""
+def _person_is_linked(person_id, family_id):
+    """Check if a person is already linked to a user account within a family."""
     db = get_db()
     row = db.execute(
-        "SELECT id FROM family_membership WHERE person_id = ?", (person_id,)
+        "SELECT id FROM family_membership WHERE person_id = ? AND family_id = ?", (person_id, family_id)
     ).fetchone()
     return row is not None
 
@@ -643,6 +688,16 @@ def relationship_add(fid):
 
     wants_json = request.headers.get('Accept') == 'application/json'
     db = get_db()
+
+    # Validate both persons belong to this family
+    p1_check = db.execute("SELECT id FROM person WHERE id = ? AND family_id = ?", (person1_id, fid)).fetchone()
+    p2_check = db.execute("SELECT id FROM person WHERE id = ? AND family_id = ?", (person2_id, fid)).fetchone()
+    if not p1_check or not p2_check:
+        if wants_json:
+            return jsonify({"ok": False, "error": "Invalid person selection"}), 400
+        flash('Invalid person selection.', 'error')
+        return redirect(url_for('person_edit', fid=fid, person_id=person_id))
+
     try:
         db.execute(
             "INSERT INTO relationship (family_id, person1_id, person2_id, rel_type) VALUES (?, ?, ?, ?)",
@@ -650,16 +705,16 @@ def relationship_add(fid):
         )
         rel_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
         other_id_val = person2_id if person1_id == person_id else person1_id
-        p1 = db.execute("SELECT first_name, last_name FROM person WHERE id = ?", (person1_id,)).fetchone()
-        p2 = db.execute("SELECT first_name, last_name FROM person WHERE id = ?", (person2_id,)).fetchone()
+        p1 = db.execute("SELECT first_name, last_name FROM person WHERE id = ? AND family_id = ?", (person1_id, fid)).fetchone()
+        p2 = db.execute("SELECT first_name, last_name FROM person WHERE id = ? AND family_id = ?", (person2_id, fid)).fetchone()
         p1_name = f"{p1['first_name']} {p1['last_name']}" if p1 else f"#{person1_id}"
         p2_name = f"{p2['first_name']} {p2['last_name']}" if p2 else f"#{person2_id}"
         _audit(db, 'add', 'relationship', rel_id,
                f"Added {rel_type.replace('_', ' ')}: {p1_name} → {p2_name}", family_id=fid)
         db.commit()
         if wants_json:
-            other = db.execute("SELECT first_name, last_name FROM person WHERE id = ?",
-                               (other_id_val,)).fetchone()
+            other = db.execute("SELECT first_name, last_name FROM person WHERE id = ? AND family_id = ?",
+                               (other_id_val, fid)).fetchone()
             return jsonify({
                 "ok": True, "rel_id": rel_id,
                 "label": _rel_display_label(rel_type, person1_id, person_id),
@@ -765,6 +820,15 @@ def share_rotate(fid):
     return redirect(url_for('family_settings', fid=fid))
 
 
+def _token_expired(row):
+    """Check if a share token has expired."""
+    if not row or not row['created_at']:
+        return True
+    created = datetime.fromisoformat(row['created_at'])
+    age_days = (datetime.utcnow() - created).days
+    return age_days > SHARE_TOKEN_MAX_AGE_DAYS
+
+
 @app.route('/join/<token>')
 def join_family(token):
     db = get_db()
@@ -772,8 +836,8 @@ def join_family(token):
         "SELECT fst.*, f.name AS family_name FROM family_share_token fst JOIN family f ON f.id = fst.family_id WHERE fst.token = ?",
         (token,),
     ).fetchone()
-    if not row:
-        flash('Invalid share link.', 'error')
+    if not row or _token_expired(row):
+        flash('Invalid or expired share link.', 'error')
         return redirect(url_for('login'))
 
     fid = row['family_id']
@@ -807,8 +871,8 @@ def join_register(token):
         "SELECT fst.*, f.name AS family_name FROM family_share_token fst JOIN family f ON f.id = fst.family_id WHERE fst.token = ?",
         (token,),
     ).fetchone()
-    if not row:
-        flash('Invalid share link.', 'error')
+    if not row or _token_expired(row):
+        flash('Invalid or expired share link.', 'error')
         return redirect(url_for('login'))
 
     fid = row['family_id']
@@ -862,11 +926,8 @@ def join_register(token):
                     (user_id, fid),
                 )
             db.commit()
+            session.clear()
             session['user_id'] = user_id
-            # Clear session view access now that they have a real account
-            view_access = session.get('family_view_access', {})
-            view_access.pop(str(fid), None)
-            session['family_view_access'] = view_access
             flash(f'Welcome to the {row["family_name"]} family tree!', 'success')
             return redirect(url_for('family_tree', fid=fid))
 
@@ -909,6 +970,16 @@ def link_person(fid):
 @login_required
 def uploaded_file(filename):
     from flask import send_from_directory
+    db = get_db()
+    person = db.execute("SELECT family_id FROM person WHERE photo_path = ?", (filename,)).fetchone()
+    if not person:
+        abort(404)
+    membership = db.execute(
+        "SELECT id FROM family_membership WHERE user_id = ? AND family_id = ?",
+        (session['user_id'], person['family_id']),
+    ).fetchone()
+    if not membership:
+        abort(403)
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 
