@@ -264,8 +264,132 @@
       }
     });
 
-    // Also add childless unions that have no representation yet — skip, they
-    // don't affect layout (spouses placed by offset).
+    // Sort children of each node to minimize edge crossings.
+    // Key heuristic: for union nodes with multiple children, place children
+    // who have a cross-family spouse toward the side of that spouse's subtree.
+    // For person nodes with multiple union children, sort unions so children
+    // from each union cluster near that union's other parent.
+
+    // Step 1: Sort children of union nodes.
+    // Children who marry someone from a rightward root subtree go right.
+    // We approximate "rightward" by root-subtree index.
+
+    // Assign each person a root-subtree index (which root-level person's subtree they belong to)
+    var rootSubtree = {};  // person_id → root person id
+    function assignSubtree(nodeId, rootId) {
+      if (typeof nodeId === 'number') rootSubtree[nodeId] = rootId;
+      (treeChildren[nodeId] || []).forEach(function(cid) {
+        assignSubtree(cid, typeof nodeId === 'number' && !rootId ? nodeId : rootId);
+      });
+    }
+    (treeChildren["root"] || []).forEach(function(rootChildId) {
+      assignSubtree(rootChildId, rootChildId);
+    });
+
+    // For each union node's children, sort by spouse's root subtree position
+    // (children marrying leftward go left, rightward go right)
+    var rootOrder = {};  // root person id → index
+    (treeChildren["root"] || []).forEach(function(id, idx) {
+      rootOrder[id] = idx;
+    });
+
+    Object.keys(treeChildren).forEach(function(parentId) {
+      if (typeof parentId === 'string' && parentId.startsWith('union_')) {
+        var kids = treeChildren[parentId];
+        if (kids.length <= 1) return;
+
+        kids.sort(function(a, b) {
+          // Get spouse subtree index for each child
+          var aSpouseIdx = -1, bSpouseIdx = -1;
+          (spousesOf[a] || []).forEach(function(sid) {
+            var st = rootSubtree[sid];
+            if (st !== undefined && rootOrder[st] !== undefined) aSpouseIdx = rootOrder[st];
+          });
+          (spousesOf[b] || []).forEach(function(sid) {
+            var st = rootSubtree[sid];
+            if (st !== undefined && rootOrder[st] !== undefined) bSpouseIdx = rootOrder[st];
+          });
+          // Children with no cross-family spouse: sort by id for stability
+          if (aSpouseIdx === -1 && bSpouseIdx === -1) return a - b;
+          if (aSpouseIdx === -1) return -1;  // no spouse → inner
+          if (bSpouseIdx === -1) return 1;
+          return aSpouseIdx - bSpouseIdx;
+        });
+      }
+    });
+
+    // Sort children of person nodes (union children): place unions whose
+    // other parent is on the left side first
+    Object.keys(treeChildren).forEach(function(parentId) {
+      var pid = parseInt(parentId);
+      if (isNaN(pid)) return;
+      var kids = treeChildren[parentId];
+      if (!kids || kids.length <= 1) return;
+
+      // Only sort union children (string ids starting with "union_")
+      var unionKids = kids.filter(function(k) { return typeof k === 'string' && k.startsWith('union_'); });
+      if (unionKids.length <= 1) return;
+
+      // Sort unions by the other parent's root subtree position
+      unionKids.sort(function(a, b) {
+        var uA = unionByUid[a], uB = unionByUid[b];
+        if (!uA || !uB) return 0;
+        var otherA = uA.p1 === pid ? uA.p2 : uA.p1;
+        var otherB = uB.p1 === pid ? uB.p2 : uB.p1;
+        var stA = rootSubtree[otherA], stB = rootSubtree[otherB];
+        var idxA = stA !== undefined ? (rootOrder[stA] !== undefined ? rootOrder[stA] : 0) : 0;
+        var idxB = stB !== undefined ? (rootOrder[stB] !== undefined ? rootOrder[stB] : 0) : 0;
+        return idxA - idxB;
+      });
+
+      // Rebuild kids array with sorted unions in their original positions
+      var uIdx = 0;
+      for (var i = 0; i < kids.length; i++) {
+        if (typeof kids[i] === 'string' && kids[i].startsWith('union_')) {
+          kids[i] = unionKids[uIdx++];
+        }
+      }
+    });
+
+    // Sort root children so families that intermarry are adjacent
+    if (treeChildren["root"] && treeChildren["root"].length > 1) {
+      // Build adjacency: two root people are "linked" if any of their
+      // descendants marry each other
+      var rootLinks = {};  // rootId → Set of linked rootIds
+      data.unions.forEach(function(u) {
+        var st1 = rootSubtree[u.p1], st2 = rootSubtree[u.p2];
+        if (st1 !== undefined && st2 !== undefined && st1 !== st2) {
+          if (!rootLinks[st1]) rootLinks[st1] = {};
+          if (!rootLinks[st2]) rootLinks[st2] = {};
+          rootLinks[st1][st2] = true;
+          rootLinks[st2][st1] = true;
+        }
+      });
+
+      // Simple greedy ordering: start with first, always pick the most-linked next
+      var remaining = {};
+      treeChildren["root"].forEach(function(id) { remaining[id] = true; });
+      var sorted = [treeChildren["root"][0]];
+      delete remaining[sorted[0]];
+
+      while (Object.keys(remaining).length > 0) {
+        var last = sorted[sorted.length - 1];
+        var bestNext = null;
+        var linked = rootLinks[last] || {};
+        // Prefer a linked root
+        for (var rid in remaining) {
+          rid = parseInt(rid) || rid;
+          if (linked[rid]) { bestNext = rid; break; }
+        }
+        if (!bestNext) bestNext = parseInt(Object.keys(remaining)[0]);
+        sorted.push(bestNext);
+        delete remaining[bestNext];
+      }
+
+      treeChildren["root"] = sorted;
+      // Update rootOrder
+      sorted.forEach(function(id, idx) { rootOrder[id] = idx; });
+    }
 
     // Build d3 hierarchy from treeChildren
     function buildHierarchy(nodeId) {
