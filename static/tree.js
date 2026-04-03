@@ -445,19 +445,21 @@
       var dist = Math.abs(pos1.x - pos2.x);
       if (dist <= SLOT * 1.5) return;
 
+      // Strong pull: move each partner 70% toward adjacent position
       var mid = (pos1.x + pos2.x) / 2;
       var target1 = mid - SLOT / 2;
       var target2 = mid + SLOT / 2;
       if (pos1.x < pos2.x) {
-        pos1.x += (target1 - pos1.x) * 0.4;
-        pos2.x += (target2 - pos2.x) * 0.4;
+        pos1.x += (target1 - pos1.x) * 0.7;
+        pos2.x += (target2 - pos2.x) * 0.7;
       } else {
-        pos1.x += (target2 - pos1.x) * 0.4;
-        pos2.x += (target1 - pos2.x) * 0.4;
+        pos1.x += (target2 - pos1.x) * 0.7;
+        pos2.x += (target1 - pos2.x) * 0.7;
       }
     });
 
-    // 11. Bidirectional overlap resolution
+    // 11. Overlap resolution — treat coupled pairs as rigid units
+    //     Build "layout groups": a coupled pair is one group, a single person is one group.
     var byGen = {};
     personIds.forEach(function(id) {
       var g_ = gen[id] || 0;
@@ -465,7 +467,17 @@
       byGen[g_].push(id);
     });
 
-    for (var overlapPass = 0; overlapPass < 3; overlapPass++) {
+    // Build a partner lookup: person_id → partner_id (if they're in a couple and both positioned)
+    var partnerOf = {};
+    Object.keys(couples).forEach(function(uid) {
+      var c = couples[uid];
+      if (nodePositions[c.p1] && nodePositions[c.p2]) {
+        partnerOf[c.p1] = c.p2;
+        partnerOf[c.p2] = c.p1;
+      }
+    });
+
+    for (var overlapPass = 0; overlapPass < 5; overlapPass++) {
       Object.keys(byGen).forEach(function(g_) {
         var members = byGen[g_].slice();
         members.sort(function(a, b) { return nodePositions[a].x - nodePositions[b].x; });
@@ -474,9 +486,24 @@
           var cur = members[i];
           var gap = nodePositions[cur].x - nodePositions[prev].x;
           if (gap < SLOT) {
-            var shift = (SLOT - gap) / 2;
-            nodePositions[prev].x -= shift;
-            nodePositions[cur].x += shift;
+            var shift = SLOT - gap;
+            // If prev and cur are partners, they should stay at SLOT apart — don't push
+            if (partnerOf[prev] === cur || partnerOf[cur] === prev) continue;
+
+            // Push both apart equally
+            var halfShift = shift / 2;
+
+            // When pushing prev left, also push its partner
+            nodePositions[prev].x -= halfShift;
+            if (partnerOf[prev] && nodePositions[partnerOf[prev]]) {
+              nodePositions[partnerOf[prev]].x -= halfShift;
+            }
+
+            // When pushing cur right, also push its partner
+            nodePositions[cur].x += halfShift;
+            if (partnerOf[cur] && nodePositions[partnerOf[cur]]) {
+              nodePositions[partnerOf[cur]].x += halfShift;
+            }
           }
         }
       });
