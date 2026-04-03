@@ -20,11 +20,6 @@
         {% if current_user %}
         <nav class="header-pill" aria-label="Main navigation">
             <div class="header-pill-brand">
-                <svg class="header-pill-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="12" y1="22" x2="12" y2="10"/>
-                    <circle cx="12" cy="7" r="5"/>
-                    <line x1="9" y1="22" x2="15" y2="22"/>
-                </svg>
                 {% if current_family %}
                 <span class="header-pill-family-name">{{ current_family.name }}</span>
                 {% else %}

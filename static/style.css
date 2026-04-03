@@ -86,10 +86,6 @@ body {
     flex-shrink: 0;
 }
 
-.header-pill-icon {
-    color: var(--text-primary);
-}
-
 .header-pill-family-name {
     font-weight: 700;
     font-size: 0.9375rem;
@@ -412,6 +408,7 @@ main.container {
     height: 100vh;
     overflow: hidden;
     position: relative;
+    background: var(--bg-page);
 }
 
 .tree-zoom-controls {
