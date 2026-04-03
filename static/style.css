@@ -275,7 +275,6 @@ main.container {
 .page-tree main.container {
     max-width: none;
     padding: 0;
-    padding-top: calc(56px + var(--space-md));
     margin: 0;
 }
 
