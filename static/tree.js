@@ -78,10 +78,6 @@
   // Union nodes: keyed by union id, tracks { personId, spouseId, dotEl }
   var unionNodes = {};
 
-  function unionId(p1, p2) {
-    return "union_" + Math.min(p1, p2) + "_" + Math.max(p1, p2);
-  }
-
   function computeUnionPos(uid) {
     var u = unionNodes[uid];
     if (!u) return;
@@ -142,235 +138,131 @@
       spousesOf[u.p2].push(u.p1);
     });
 
-    // --- Layout via D3 tree ---
-    //
-    // Strategy (inspired by family-chart):
-    //   1. Build a virtual hierarchy: a synthetic root → union nodes → children.
-    //      People without a parent union become direct children of the root.
-    //      Spouses are NOT tree nodes — they're positioned as offsets from their union.
-    //   2. Let d3.tree() compute x positions (centering children under parents).
-    //   3. Map union x positions back to spouse-pair positions.
-    //   4. Place any "orphan" spouses (married-in, no children of their own) adjacent.
+    // --- Layout via spouse-collapsing D3 tree ---
 
     var SLOT = NODE_WIDTH + H_GAP;
 
-    // Identify which people are "primary" in each union (the one who has parents
-    // or more connections). The other is the "attached" spouse.
-    // A person can be primary in one union and attached in none, or vice versa.
-
-    // For each union, figure out which partner is the tree-node (has parents or
-    // more descendant connections) and which is the offset spouse.
-    var primaryOf = {};   // uid → person id (the one in the tree hierarchy)
-    var spouseOf = {};    // uid → person id (the one placed as offset)
-    var personIsSpouseIn = {};  // person_id → [uid, ...] where they are the offset spouse
+    // 1. Build couple map from unions
+    var couples = {};       // uid → { p1, p2, uid, kids }
+    var personCouple = {};  // person_id → uid (only for the "primary" partner)
 
     data.unions.forEach(function(u) {
-      var p1HasParent = !!parentsOf[u.p1];
-      var p2HasParent = !!parentsOf[u.p2];
-      var p1Kids = 0, p2Kids = 0;
-      data.unions.forEach(function(u2) {
-        var kids = (childrenOf[u2.uid] || []).length;
-        if (u2.p1 === u.p1 || u2.p2 === u.p1) p1Kids += kids;
-        if (u2.p1 === u.p2 || u2.p2 === u.p2) p2Kids += kids;
-      });
+      if (!u.p1 || !u.p2) return;  // skip single-parent units
+      couples[u.uid] = { p1: u.p1, p2: u.p2, uid: u.uid, kids: (childrenOf[u.uid] || []).slice() };
+    });
 
-      // Primary = person with parents, or if both/neither have parents, the one
-      // with more children connections
+    // 2. Determine primary/spouse per couple
+    //    Primary = the partner who has parents in the tree (is someone's child)
+    //    If both or neither have parents, use p1.
+    var primaryOf = {};   // uid → person_id
+    var spouseOf = {};    // uid → person_id
+    var personIsSpouseIn = {};  // person_id → uid
+
+    Object.keys(couples).forEach(function(uid) {
+      var c = couples[uid];
+      var p1HasParent = !!parentsOf[c.p1];
+      var p2HasParent = !!parentsOf[c.p2];
       var primary, spouse;
       if (p1HasParent && !p2HasParent) {
-        primary = u.p1; spouse = u.p2;
+        primary = c.p1; spouse = c.p2;
       } else if (p2HasParent && !p1HasParent) {
-        primary = u.p2; spouse = u.p1;
+        primary = c.p2; spouse = c.p1;
       } else {
-        primary = p1Kids >= p2Kids ? u.p1 : u.p2;
-        spouse = primary === u.p1 ? u.p2 : u.p1;
+        primary = c.p1; spouse = c.p2;
       }
-      primaryOf[u.uid] = primary;
-      spouseOf[u.uid] = spouse;
-      if (!personIsSpouseIn[spouse]) personIsSpouseIn[spouse] = [];
-      personIsSpouseIn[spouse].push(u.uid);
+      primaryOf[uid] = primary;
+      spouseOf[uid] = spouse;
+      personIsSpouseIn[spouse] = uid;
+      if (!personCouple[primary]) personCouple[primary] = uid;
     });
 
-    // Build the virtual tree hierarchy.
-    // Tree nodes: "root" (synthetic), union uids, and person ids (for people in the tree).
-    // A person is "in the tree" if they are a primary in some union, or have no union at all.
-    // Children connect to their parent union node.
+    // 3. Determine which people are "representative" tree nodes
+    //    A person is representative if they are:
+    //    - Primary in a couple (the couple node represents them), OR
+    //    - Not in any couple at all (single person node)
+    //    Offset spouses are NOT tree nodes.
+    var personIds = data.nodes.map(function(p) { return p.id; });
 
-    // Collect all people who appear as tree nodes (not just offset spouses)
-    var inTree = {};  // person_id → true
-    data.nodes.forEach(function(p) {
-      // A person is in the tree if they are NOT exclusively an offset spouse
-      // (i.e., they have parents, or they are primary in some union, or they have no unions)
-      var isPrimaryAnywhere = false;
-      data.unions.forEach(function(u) {
-        if (primaryOf[u.uid] === p.id) isPrimaryAnywhere = true;
-      });
-      var hasParents = !!parentsOf[p.id];
-      var hasNoUnions = !(spousesOf[p.id] && spousesOf[p.id].length > 0);
-
-      if (isPrimaryAnywhere || hasParents || hasNoUnions) {
-        inTree[p.id] = true;
-      }
+    var inCouple = {};  // person_id → uid (any couple they're in)
+    Object.keys(couples).forEach(function(uid) {
+      inCouple[primaryOf[uid]] = uid;
+      inCouple[spouseOf[uid]] = uid;
     });
 
-    // Build children map for the virtual tree:
-    // root → union nodes (for unions whose parents have no grandparents) + orphan people
-    // union node → children of that union (who are inTree)
-
-    // For each union that has children, it becomes a tree node.
-    // Its parent in the tree = the primary person of that union.
-    // The primary person's parent = their parent union (from parentsOf), or root.
-
-    // Actually, let's build a simpler hierarchy:
-    // - Each union with children is a node
-    // - Each person who is inTree is a node
-    // - Parent of a person = their parent union (from data.edges), or root
-    // - Parent of a union = its primary person
-    // This creates: root → person → union → person → union → ...
-
-    var treeChildren = {};  // nodeId → [childId, ...]
-
-    function addTreeChild(parentId, childId) {
+    // 4. Build virtual tree hierarchy
+    //    Tree nodes are: couple UIDs (for people in couples) and person IDs (for singles)
+    //    A couple node's tree-parent = the parent edge of its primary person
+    var treeChildren = {};
+    function addChild(parentId, childId) {
       if (!treeChildren[parentId]) treeChildren[parentId] = [];
-      treeChildren[parentId].push(childId);
+      if (treeChildren[parentId].indexOf(childId) === -1) treeChildren[parentId].push(childId);
     }
 
-    // Connect persons to their parent unions
-    var personTreeParent = {};  // person_id → parent node id in tree
-    data.nodes.forEach(function(p) {
-      if (!inTree[p.id]) return;
-      var from = parentsOf[p.id];
-      if (from) {
-        // Parent is a union or single parent
-        addTreeChild(from, p.id);
-        personTreeParent[p.id] = from;
-      }
-      // else: will be connected to root later
-    });
+    var treeParent = {};
 
-    // Connect unions to their primary person
-    data.unions.forEach(function(u) {
-      var kids = childrenOf[u.uid] || [];
-      if (kids.length === 0) return;  // childless unions don't need tree nodes
-      addTreeChild(primaryOf[u.uid], u.uid);
-    });
+    personIds.forEach(function(id) {
+      // Skip offset spouses — they'll be placed adjacent to their primary
+      if (personIsSpouseIn[id] && !personCouple[id]) return;
 
-    // Find root-level people (no parent union) and connect to synthetic root
-    var rootChildren = [];
-    data.nodes.forEach(function(p) {
-      if (!inTree[p.id]) return;
-      if (!personTreeParent[p.id]) {
-        rootChildren.push(p.id);
-        addTreeChild("root", p.id);
+      // This person's tree node: their couple (if primary) or themselves
+      var myNode = personCouple[id] || id;
+
+      // This person's parent in the tree
+      var parentFrom = parentsOf[id];  // fu_N or person_id or undefined
+
+      if (parentFrom && !treeParent[myNode]) {
+        treeParent[myNode] = parentFrom;
+        addChild(parentFrom, myNode);
       }
     });
 
-    // Sort children of each node to minimize edge crossings.
-    // Key heuristic: for union nodes with multiple children, place children
-    // who have a cross-family spouse toward the side of that spouse's subtree.
-    // For person nodes with multiple union children, sort unions so children
-    // from each union cluster near that union's other parent.
+    // Connect orphans (no parent) to root
+    var allRepNodes = {};
+    personIds.forEach(function(id) {
+      if (personCouple[id]) allRepNodes[personCouple[id]] = true;
+      else if (!personIsSpouseIn[id]) allRepNodes[id] = true;
+    });
 
-    // Step 1: Sort children of union nodes.
-    // Children who marry someone from a rightward root subtree go right.
-    // We approximate "rightward" by root-subtree index.
+    Object.keys(allRepNodes).forEach(function(nodeId) {
+      if (!treeParent[nodeId]) {
+        addChild("root", nodeId);
+      }
+    });
 
-    // Assign each person a root-subtree index (which root-level person's subtree they belong to)
-    var rootSubtree = {};  // person_id → root person id
+    // 5. Sort children for edge-crossing minimization
+    //    Use birth_order first, then existing cross-family heuristics
+
+    // Build birth_order lookup
+    var birthOrderOf = {};
+    data.edges.forEach(function(e) {
+      if (e.birth_order != null) birthOrderOf[e.child] = e.birth_order;
+    });
+
+    // Assign root-subtree index for cross-family sorting
+    var rootSubtree = {};
     function assignSubtree(nodeId, rootId) {
       if (typeof nodeId === 'number') rootSubtree[nodeId] = rootId;
+      // For couple nodes, assign both partners
+      if (couples[nodeId]) {
+        rootSubtree[primaryOf[nodeId]] = rootId;
+        rootSubtree[spouseOf[nodeId]] = rootId;
+      }
       (treeChildren[nodeId] || []).forEach(function(cid) {
-        assignSubtree(cid, typeof nodeId === 'number' && !rootId ? nodeId : rootId);
+        assignSubtree(cid, rootId);
       });
     }
     (treeChildren["root"] || []).forEach(function(rootChildId) {
       assignSubtree(rootChildId, rootChildId);
     });
 
-    // For each union node's children, sort by spouse's root subtree position
-    // (children marrying leftward go left, rightward go right)
-    var rootOrder = {};  // root person id → index
-    (treeChildren["root"] || []).forEach(function(id, idx) {
-      rootOrder[id] = idx;
-    });
+    var rootOrder = {};
+    (treeChildren["root"] || []).forEach(function(id, idx) { rootOrder[id] = idx; });
 
-    Object.keys(treeChildren).forEach(function(parentId) {
-      if (typeof parentId === 'string' && parentId.startsWith('union_')) {
-        var kids = treeChildren[parentId];
-        if (kids.length <= 1) return;
-
-        kids.sort(function(a, b) {
-          // Get spouse subtree index for each child
-          var aSpouseIdx = -1, bSpouseIdx = -1;
-          (spousesOf[a] || []).forEach(function(sid) {
-            var st = rootSubtree[sid];
-            if (st !== undefined && rootOrder[st] !== undefined) aSpouseIdx = rootOrder[st];
-          });
-          (spousesOf[b] || []).forEach(function(sid) {
-            var st = rootSubtree[sid];
-            if (st !== undefined && rootOrder[st] !== undefined) bSpouseIdx = rootOrder[st];
-          });
-          // Children with no cross-family spouse: sort by id for stability
-          if (aSpouseIdx === -1 && bSpouseIdx === -1) return a - b;
-          if (aSpouseIdx === -1) return -1;  // no spouse → inner
-          if (bSpouseIdx === -1) return 1;
-          return aSpouseIdx - bSpouseIdx;
-        });
-      }
-    });
-
-    // Sort children of person nodes (union children): place unions whose
-    // descendants marry into rightward families on the right side.
-    Object.keys(treeChildren).forEach(function(parentId) {
-      var pid = parseInt(parentId);
-      if (isNaN(pid)) return;
-      var kids = treeChildren[parentId];
-      if (!kids || kids.length <= 1) return;
-
-      var unionKids = kids.filter(function(k) { return typeof k === 'string' && k.startsWith('union_'); });
-      if (unionKids.length <= 1) return;
-
-      // For each union, find the max root subtree index that any of its
-      // children's spouses belong to. Higher index = more rightward.
-      function unionSpouseReach(uid) {
-        var maxIdx = -1;
-        var uKids = childrenOf[uid] || [];
-        uKids.forEach(function(kid) {
-          (spousesOf[kid] || []).forEach(function(sid) {
-            var st = rootSubtree[sid];
-            if (st !== undefined && rootOrder[st] !== undefined) {
-              if (rootOrder[st] > maxIdx) maxIdx = rootOrder[st];
-            }
-          });
-        });
-        return maxIdx;
-      }
-
-      unionKids.sort(function(a, b) {
-        var reachA = unionSpouseReach(a);
-        var reachB = unionSpouseReach(b);
-        // Unions with no cross-family children go left (lower index)
-        if (reachA === -1 && reachB === -1) return 0;
-        if (reachA === -1) return -1;
-        if (reachB === -1) return 1;
-        return reachA - reachB;
-      });
-
-      // Rebuild kids array with sorted unions in their original positions
-      var uIdx = 0;
-      for (var i = 0; i < kids.length; i++) {
-        if (typeof kids[i] === 'string' && kids[i].startsWith('union_')) {
-          kids[i] = unionKids[uIdx++];
-        }
-      }
-    });
-
-    // Sort root children so families that intermarry are adjacent
+    // Sort root children so intermarrying families are adjacent
     if (treeChildren["root"] && treeChildren["root"].length > 1) {
-      // Build adjacency: two root people are "linked" if any of their
-      // descendants marry each other
-      var rootLinks = {};  // rootId → Set of linked rootIds
+      var rootLinks = {};
       data.unions.forEach(function(u) {
+        if (!u.p1 || !u.p2) return;
         var st1 = rootSubtree[u.p1], st2 = rootSubtree[u.p2];
         if (st1 !== undefined && st2 !== undefined && st1 !== st2) {
           if (!rootLinks[st1]) rootLinks[st1] = {};
@@ -380,32 +272,61 @@
         }
       });
 
-      // Simple greedy ordering: start with first, always pick the most-linked next
       var remaining = {};
       treeChildren["root"].forEach(function(id) { remaining[id] = true; });
       var sorted = [treeChildren["root"][0]];
       delete remaining[sorted[0]];
-
       while (Object.keys(remaining).length > 0) {
         var last = sorted[sorted.length - 1];
-        var bestNext = null;
         var linked = rootLinks[last] || {};
-        // Prefer a linked root
+        var bestNext = null;
         for (var rid in remaining) {
-          rid = parseInt(rid) || rid;
           if (linked[rid]) { bestNext = rid; break; }
         }
-        if (!bestNext) bestNext = parseInt(Object.keys(remaining)[0]);
+        if (!bestNext) bestNext = Object.keys(remaining)[0];
         sorted.push(bestNext);
         delete remaining[bestNext];
       }
-
       treeChildren["root"] = sorted;
-      // Update rootOrder
       sorted.forEach(function(id, idx) { rootOrder[id] = idx; });
     }
 
-    // Build d3 hierarchy from treeChildren
+    // Sort children of each parent node
+    Object.keys(treeChildren).forEach(function(parentId) {
+      if (parentId === "root") return;
+      var kids = treeChildren[parentId];
+      if (!kids || kids.length <= 1) return;
+
+      kids.sort(function(a, b) {
+        // Get the person ID for this tree node (for couples, use primary)
+        var aPersonId = couples[a] ? primaryOf[a] : a;
+        var bPersonId = couples[b] ? primaryOf[b] : b;
+
+        // Birth order first
+        var aOrder = birthOrderOf[aPersonId];
+        var bOrder = birthOrderOf[bPersonId];
+        if (aOrder != null && bOrder != null && aOrder !== bOrder) return aOrder - bOrder;
+        if (aOrder != null && bOrder == null) return -1;
+        if (aOrder == null && bOrder != null) return 1;
+
+        // Cross-family spouse heuristic
+        var aSpouseIdx = -1, bSpouseIdx = -1;
+        (spousesOf[aPersonId] || []).forEach(function(sid) {
+          var st = rootSubtree[sid];
+          if (st !== undefined && rootOrder[st] !== undefined) aSpouseIdx = rootOrder[st];
+        });
+        (spousesOf[bPersonId] || []).forEach(function(sid) {
+          var st = rootSubtree[sid];
+          if (st !== undefined && rootOrder[st] !== undefined) bSpouseIdx = rootOrder[st];
+        });
+        if (aSpouseIdx === -1 && bSpouseIdx === -1) return aPersonId - bPersonId;
+        if (aSpouseIdx === -1) return -1;
+        if (bSpouseIdx === -1) return 1;
+        return aSpouseIdx - bSpouseIdx;
+      });
+    });
+
+    // 6. Build d3 hierarchy and run layout
     function buildHierarchy(nodeId) {
       var children = treeChildren[nodeId] || [];
       var node = { id: nodeId, children: [] };
@@ -419,46 +340,38 @@
     var rootData = buildHierarchy("root");
     var hierarchy = d3.hierarchy(rootData);
 
-    // Configure d3.tree layout
+    // Use COUPLE_SLOT as nodeSize so couples have enough room
+    var COUPLE_SLOT = (NODE_WIDTH * 2 + H_GAP) + H_GAP;
     var treeLayout = d3.tree()
-      .nodeSize([SLOT, V_GAP])
+      .nodeSize([COUPLE_SLOT, V_GAP])
       .separation(function(a, b) {
-        // More space between nodes that don't share a parent
-        return a.parent === b.parent ? 1 : 1.2;
+        // Tighter for siblings, wider between different parents
+        var aIsCouple = couples[a.data.id] ? true : false;
+        var bIsCouple = couples[b.data.id] ? true : false;
+        // Singles need less space
+        if (!aIsCouple && !bIsCouple) return 0.55;
+        if (a.parent === b.parent) return 1;
+        return 1.2;
       });
 
     treeLayout(hierarchy);
 
-    // Extract positions from the d3 layout
-    // d3.tree uses x for horizontal, y for vertical (depth)
-    var treeX = {};  // nodeId → x from d3
-    var treeDepth = {};  // nodeId → depth level
-
-    hierarchy.each(function(node) {
-      treeX[node.data.id] = node.x;
-      treeDepth[node.data.id] = node.depth;
-    });
-
-    // Compute generation for each person based on tree depth.
-    // Person depth in the tree includes union intermediate nodes, so actual
-    // generation = (depth - 1) / 2 for the pattern root→person→union→person→union...
-    // But depth varies. Let's compute generation from parent-child edges instead.
+    // 7. Compute generation for each person (from parent-child edges)
     var gen = {};
-    var personIds = data.nodes.map(function(p) { return p.id; });
     personIds.forEach(function(id) { gen[id] = 0; });
-
-    var changed = true;
-    var iters = 0;
+    var changed = true, iters = 0;
     while (changed && iters < 100) {
-      changed = false;
-      iters++;
+      changed = false; iters++;
       data.edges.forEach(function(e) {
         var fromId = e.from;
         var childId = e.child;
         var parentGen;
-        if (typeof fromId === 'string' && fromId.startsWith('union_')) {
-          var u = unionByUid[fromId];
-          parentGen = u ? Math.max(gen[u.p1] || 0, gen[u.p2] || 0) : 0;
+        if (typeof fromId === 'string' && couples[fromId]) {
+          var u = couples[fromId];
+          parentGen = Math.max(gen[u.p1] || 0, gen[u.p2] || 0);
+        } else if (typeof fromId === 'string' && unionByUid[fromId]) {
+          var uu = unionByUid[fromId];
+          parentGen = Math.max(gen[uu.p1] || 0, gen[uu.p2] || 0);
         } else {
           parentGen = gen[fromId] || 0;
         }
@@ -469,111 +382,82 @@
       });
     }
 
-    // Assign pixel positions to people who are in the tree
-    personIds.forEach(function(id) {
-      if (inTree[id] && treeX[id] !== undefined) {
-        nodePositions[id] = {
-          x: treeX[id],
-          y: 80 + (gen[id] || 0) * V_GAP
-        };
+    // 8. Extract positions — split couple nodes into two person positions
+    hierarchy.each(function(node) {
+      var nid = node.data.id;
+      if (nid === "root") return;
+
+      if (couples[nid]) {
+        // Couple node → split into two people
+        var c = couples[nid];
+        var primary = primaryOf[nid];
+        var spouse = spouseOf[nid];
+        var gen_y = 80 + (gen[primary] || 0) * V_GAP;
+
+        // Gender hint: male left, female right (if both known). Else primary left.
+        var pData = peopleById[primary];
+        var sData = peopleById[spouse];
+        var leftId = primary, rightId = spouse;
+        if (sData && sData.gender === 'male' && pData && pData.gender !== 'male') {
+          leftId = spouse; rightId = primary;
+        }
+
+        nodePositions[leftId] = { x: node.x - (NODE_WIDTH + H_GAP) / 2, y: gen_y };
+        nodePositions[rightId] = { x: node.x + (NODE_WIDTH + H_GAP) / 2, y: gen_y };
+      } else if (typeof nid === 'number') {
+        // Single person node
+        nodePositions[nid] = { x: node.x, y: 80 + (gen[nid] || 0) * V_GAP };
       }
     });
 
-    // Place offset spouses adjacent to their primary partner.
-    // Direction: place spouse on the side toward the union's children,
-    // or if childless, toward the outside of the sibling group.
-    data.unions.forEach(function(u) {
-      var spouse = spouseOf[u.uid];
-      var primary = primaryOf[u.uid];
-      if (!spouse || !primary) return;
-      if (nodePositions[spouse]) return;
-      var pPos = nodePositions[primary];
-      if (!pPos) return;
-
-      // Determine direction: where are this union's children?
-      var kids = childrenOf[u.uid] || [];
-      var direction = 1;  // default: right
-
-      if (kids.length > 0) {
-        // Place spouse on the side toward the children's center
-        var kidCenterX = 0;
-        var kidCount = 0;
-        kids.forEach(function(k) {
-          if (nodePositions[k]) { kidCenterX += nodePositions[k].x; kidCount++; }
-        });
-        if (kidCount > 0) {
-          kidCenterX /= kidCount;
-          direction = kidCenterX >= pPos.x ? 1 : -1;
-        }
-      } else {
-        // Childless: place toward the outside (away from primary's parent union center)
-        var parentFrom = parentsOf[primary];
-        if (parentFrom && nodePositions[parentFrom]) {
-          direction = pPos.x >= nodePositions[parentFrom].x ? 1 : -1;
-        }
-      }
-
-      // Check if there's already a spouse on that side
-      var blocked = false;
-      data.unions.forEach(function(u2) {
-        if (u2.uid === u.uid) return;
-        var otherSpouse = spouseOf[u2.uid];
-        if (primaryOf[u2.uid] === primary && otherSpouse && nodePositions[otherSpouse]) {
-          if (direction > 0 && nodePositions[otherSpouse].x > pPos.x) blocked = true;
-          if (direction < 0 && nodePositions[otherSpouse].x < pPos.x) blocked = true;
-        }
-      });
-      if (blocked) direction = -direction;
-
-      nodePositions[spouse] = {
-        x: pPos.x + direction * SLOT,
-        y: pPos.y
-      };
-    });
-
-    // Place any remaining people not yet positioned (no unions, no parents — isolated)
+    // 9. Place remaining people not yet positioned (isolated, or offset spouses of single-parent units)
     var placedCount = Object.keys(nodePositions).length;
     personIds.forEach(function(id) {
       if (nodePositions[id]) return;
-      nodePositions[id] = {
-        x: (placedCount++) * SLOT,
-        y: 80 + (gen[id] || 0) * V_GAP
-      };
+
+      // Check if they're a spouse in a single-parent unit (p2 is null in union)
+      // or just totally unconnected
+      // Try to place near their partner if they have one
+      var placed = false;
+      data.unions.forEach(function(u) {
+        if (placed) return;
+        if (u.p1 === id && u.p2 && nodePositions[u.p2]) {
+          nodePositions[id] = { x: nodePositions[u.p2].x - SLOT, y: nodePositions[u.p2].y };
+          placed = true;
+        } else if (u.p2 === id && u.p1 && nodePositions[u.p1]) {
+          nodePositions[id] = { x: nodePositions[u.p1].x + SLOT, y: nodePositions[u.p1].y };
+          placed = true;
+        }
+      });
+
+      if (!placed) {
+        nodePositions[id] = { x: (placedCount++) * SLOT, y: 80 + (gen[id] || 0) * V_GAP };
+      }
     });
 
-    // Post-layout: pull married couples toward each other.
-    // For each union where both partners are in the tree (cross-family marriage),
-    // shift the subtrees to bring the couple adjacent.
+    // 10. Cross-family spouse pull: bring married couples from different subtrees closer
     data.unions.forEach(function(u) {
+      if (!u.p1 || !u.p2) return;
       var pos1 = nodePositions[u.p1];
       var pos2 = nodePositions[u.p2];
       if (!pos1 || !pos2) return;
-      if (pos1.y !== pos2.y) return;  // different generations, skip
-
-      // If they're already adjacent (within 1.5 SLOT), skip
+      if (pos1.y !== pos2.y) return;
       var dist = Math.abs(pos1.x - pos2.x);
       if (dist <= SLOT * 1.5) return;
 
-      // Move each partner 40% toward the other
       var mid = (pos1.x + pos2.x) / 2;
       var target1 = mid - SLOT / 2;
       var target2 = mid + SLOT / 2;
-
-      // Determine which is left, which is right
       if (pos1.x < pos2.x) {
-        var shift1 = (target1 - pos1.x) * 0.4;
-        var shift2 = (target2 - pos2.x) * 0.4;
+        pos1.x += (target1 - pos1.x) * 0.4;
+        pos2.x += (target2 - pos2.x) * 0.4;
       } else {
-        var shift1 = (target2 - pos1.x) * 0.4;
-        var shift2 = (target1 - pos2.x) * 0.4;
+        pos1.x += (target2 - pos1.x) * 0.4;
+        pos2.x += (target1 - pos2.x) * 0.4;
       }
-
-      // Shift the partner and all their offset spouses
-      pos1.x += shift1;
-      pos2.x += shift2;
     });
 
-    // Fix overlaps within each generation — spouses placed by offset may collide
+    // 11. Bidirectional overlap resolution
     var byGen = {};
     personIds.forEach(function(id) {
       var g_ = gen[id] || 0;
@@ -581,7 +465,6 @@
       byGen[g_].push(id);
     });
 
-    // Run overlap resolution multiple times to stabilize after spouse pulls
     for (var overlapPass = 0; overlapPass < 3; overlapPass++) {
       Object.keys(byGen).forEach(function(g_) {
         var members = byGen[g_].slice();
@@ -589,21 +472,11 @@
         for (var i = 1; i < members.length; i++) {
           var prev = members[i - 1];
           var cur = members[i];
-          var minDist = SLOT;
-
-          // Extra space after an offset spouse (so siblings don't crowd the couple)
-          var prevIsSpouse = false;
-          data.unions.forEach(function(u) {
-            if (spouseOf[u.uid] === prev && !inTree[prev]) prevIsSpouse = true;
-          });
-          if (prevIsSpouse) minDist = SLOT * 1.15;
-
           var gap = nodePositions[cur].x - nodePositions[prev].x;
-          if (gap < minDist) {
-            var shift = minDist - gap;
-            for (var j = i; j < members.length; j++) {
-              nodePositions[members[j]].x += shift;
-            }
+          if (gap < SLOT) {
+            var shift = (SLOT - gap) / 2;
+            nodePositions[prev].x -= shift;
+            nodePositions[cur].x += shift;
           }
         }
       });
