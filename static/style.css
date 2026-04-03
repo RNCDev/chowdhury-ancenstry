@@ -51,6 +51,10 @@ body, h1, h2, h3, h4, p, dl, dd, figure, blockquote { margin: 0; }
 ul, ol { margin: 0; padding: 0; }
 img { max-width: 100%; display: block; }
 
+html {
+    background: var(--bg-page);
+}
+
 body {
     font-family: 'Source Sans 3', sans-serif;
     font-size: 1rem;

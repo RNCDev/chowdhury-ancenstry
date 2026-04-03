@@ -42,6 +42,17 @@
 </div>
 
 <div class="form-card">
+    <h3 class="section-title">Tree Layout</h3>
+    <p class="form-hint">Reset all manually positioned nodes back to the auto-generated layout.</p>
+    <button type="button" class="btn-outline-danger btn-sm" id="reset-layout-btn"
+            onclick="if(confirm('Reset the tree layout? All manually dragged positions will be lost.')){
+                fetch('{{ url_for('api_reset_layout', fid=fid) }}',{method:'DELETE',headers:{'X-CSRF-Token':'{{ session.get('csrf_token','') }}'}})
+                .then(function(r){return r.json()})
+                .then(function(d){if(d.ok){location.reload()}})
+            }">Reset Layout</button>
+</div>
+
+<div class="form-card">
     <h3 class="section-title">Share Link</h3>
     <p class="form-hint">Anyone with this link can view the tree. Creating an account upgrades them to a full member.</p>
     {% if share_token %}
