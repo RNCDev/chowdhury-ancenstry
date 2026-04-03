@@ -45,9 +45,24 @@ CREATE TABLE IF NOT EXISTS person (
     photo_path TEXT,
     notes TEXT,
     status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'stub')),
+    gender TEXT CHECK (gender IN ('male', 'female', 'other', 'unknown')),
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS family_unit (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    family_id INTEGER NOT NULL REFERENCES family(id) ON DELETE CASCADE,
+    partner1_id INTEGER REFERENCES person(id) ON DELETE SET NULL,
+    partner2_id INTEGER REFERENCES person(id) ON DELETE SET NULL,
+    union_type TEXT NOT NULL DEFAULT 'marriage'
+        CHECK (union_type IN ('marriage', 'divorced', 'partnership', 'single_parent')),
+    start_date TEXT,
+    end_date TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_family_unit_family ON family_unit(family_id);
 
 CREATE TABLE IF NOT EXISTS relationship (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -59,6 +74,8 @@ CREATE TABLE IF NOT EXISTS relationship (
     )),
     start_date TEXT,
     end_date TEXT,
+    family_unit_id INTEGER REFERENCES family_unit(id) ON DELETE SET NULL,
+    birth_order INTEGER,
     created_at TEXT DEFAULT (datetime('now')),
     UNIQUE(person1_id, person2_id, rel_type),
     CHECK (person1_id != person2_id)
