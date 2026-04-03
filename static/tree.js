@@ -661,6 +661,41 @@
         });
 
       nodeG.call(dragBehavior);
+
+      // Double-click: flip couple positions
+      if (!viewOnly) {
+        nodeG.on("dblclick", function(event) {
+          event.stopPropagation();
+          var partnerId = partnerOf[id];
+          if (!partnerId || !nodePositions[partnerId]) return;
+
+          // Swap x positions
+          var tmpX = pos.x;
+          pos.x = nodePositions[partnerId].x;
+          nodePositions[partnerId].x = tmpX;
+
+          // Update visuals
+          d3.select(this).attr("transform", "translate(" + pos.x + "," + pos.y + ")");
+          if (nodePositions[partnerId].gEl) {
+            nodePositions[partnerId].gEl.attr("transform", "translate(" + nodePositions[partnerId].x + "," + nodePositions[partnerId].y + ")");
+          }
+          recomputeUnionsFor(id);
+          recomputeUnionsFor(partnerId);
+          updateEdgesFor(id);
+          updateEdgesFor(partnerId);
+
+          // Save both positions
+          var headers = { "Content-Type": "application/json", "X-CSRF-Token": csrfToken };
+          fetch("/family/" + familyId + "/api/tree/layout", {
+            method: "POST", headers: headers,
+            body: JSON.stringify({ person_id: id, x: pos.x, y: pos.y })
+          });
+          fetch("/family/" + familyId + "/api/tree/layout", {
+            method: "POST", headers: headers,
+            body: JSON.stringify({ person_id: partnerId, x: nodePositions[partnerId].x, y: nodePositions[partnerId].y })
+          });
+        });
+      }
     }
 
     data.nodes.forEach(function(p) {
