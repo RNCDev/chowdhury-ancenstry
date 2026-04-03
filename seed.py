@@ -1,13 +1,17 @@
 """Seed the database with initial Chowdhury family data and an admin user."""
 
+import sqlite3
+
 from werkzeug.security import generate_password_hash
 
-from db import get_db, init_db
+from db import DATABASE, init_db
 
 
 def seed():
     init_db()
-    db = get_db()
+    db = sqlite3.connect(DATABASE)
+    db.row_factory = sqlite3.Row
+    db.execute("PRAGMA foreign_keys = ON")
 
     # Check if data already exists
     count = db.execute("SELECT COUNT(*) FROM person").fetchone()[0]
@@ -52,28 +56,48 @@ def seed():
         )
         ids[f"{first} {last}"] = cursor.lastrowid
 
-    # Insert relationships
+    # Create family units
+    fu_cursor = db.execute(
+        "INSERT INTO family_unit (family_id, partner1_id, partner2_id, union_type) VALUES (?, ?, ?, 'marriage')",
+        (family_id, ids["Prodiptya Chowdhury"], ids["Sangeeta Chowdhury"]),
+    )
+    fu_chowdhury = fu_cursor.lastrowid
+
+    fu_cursor = db.execute(
+        "INSERT INTO family_unit (family_id, partner1_id, partner2_id, union_type) VALUES (?, ?, ?, 'marriage')",
+        (family_id, ids["Joseph Noreika"], ids["Joanne Keane"]),
+    )
+    fu_noreika = fu_cursor.lastrowid
+
+    fu_cursor = db.execute(
+        "INSERT INTO family_unit (family_id, partner1_id, partner2_id, union_type) VALUES (?, ?, ?, 'marriage')",
+        (family_id, ids["Ritujoy Chowdhury"], ids["Sarah Norieka"]),
+    )
+    fu_ritujoy = fu_cursor.lastrowid
+
+    # Insert relationships (spouse pairs + parent_child with family_unit_id)
     relationships = [
-        (ids["Prodiptya Chowdhury"], ids["Sangeeta Chowdhury"], "spouse"),
-        (ids["Joseph Noreika"], ids["Joanne Keane"], "spouse"),
-        (ids["Ritujoy Chowdhury"], ids["Sarah Norieka"], "spouse"),
-        (ids["Prodiptya Chowdhury"], ids["Ritujoy Chowdhury"], "parent_child"),
-        (ids["Sangeeta Chowdhury"], ids["Ritujoy Chowdhury"], "parent_child"),
-        (ids["Joseph Noreika"], ids["Sarah Norieka"], "parent_child"),
-        (ids["Joanne Keane"], ids["Sarah Norieka"], "parent_child"),
-        (ids["Ritujoy Chowdhury"], ids["Livia Chowdhury"], "parent_child"),
-        (ids["Sarah Norieka"], ids["Livia Chowdhury"], "parent_child"),
+        (ids["Prodiptya Chowdhury"], ids["Sangeeta Chowdhury"], "spouse", None, None),
+        (ids["Joseph Noreika"], ids["Joanne Keane"], "spouse", None, None),
+        (ids["Ritujoy Chowdhury"], ids["Sarah Norieka"], "spouse", None, None),
+        # Parent-child with family_unit_id and birth_order
+        (ids["Prodiptya Chowdhury"], ids["Ritujoy Chowdhury"], "parent_child", fu_chowdhury, 1),
+        (ids["Sangeeta Chowdhury"], ids["Ritujoy Chowdhury"], "parent_child", fu_chowdhury, 1),
+        (ids["Joseph Noreika"], ids["Sarah Norieka"], "parent_child", fu_noreika, 1),
+        (ids["Joanne Keane"], ids["Sarah Norieka"], "parent_child", fu_noreika, 1),
+        (ids["Ritujoy Chowdhury"], ids["Livia Chowdhury"], "parent_child", fu_ritujoy, 1),
+        (ids["Sarah Norieka"], ids["Livia Chowdhury"], "parent_child", fu_ritujoy, 1),
     ]
 
-    for person1_id, person2_id, rel_type in relationships:
+    for person1_id, person2_id, rel_type, fu_id, birth_ord in relationships:
         db.execute(
-            "INSERT INTO relationship (family_id, person1_id, person2_id, rel_type) VALUES (?, ?, ?, ?)",
-            (family_id, person1_id, person2_id, rel_type),
+            "INSERT INTO relationship (family_id, person1_id, person2_id, rel_type, family_unit_id, birth_order) VALUES (?, ?, ?, ?, ?, ?)",
+            (family_id, person1_id, person2_id, rel_type, fu_id, birth_ord),
         )
 
     db.commit()
     db.close()
-    print("Seeded 7 people, 9 relationships, 1 family, and admin user (admin/admin).")
+    print("Seeded 7 people, 3 family units, 9 relationships, 1 family, and admin user (admin/admin).")
 
 
 if __name__ == "__main__":
