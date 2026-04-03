@@ -270,6 +270,10 @@ main.container {
     padding-top: 80px;
 }
 
+.page-tree .banner {
+    display: none;
+}
+
 .page-tree main.container {
     max-width: none;
     padding: 0;
