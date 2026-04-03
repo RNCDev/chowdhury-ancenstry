@@ -51,21 +51,21 @@
         </nav>
         {% endif %}
 
-        {% if view_only and current_family %}
-        <div class="banner banner-view-only">
-            You're viewing this family tree as a guest.
-            {% if share_token %}
-            <a href="{{ url_for('join_register', token=share_token.token) }}">Create an account</a> to become a member.
-            {% endif %}
-        </div>
-        {% elif current_user and current_family and membership and not membership.person_id %}
-        <div class="banner banner-info">
-            You haven't linked your profile to a family member yet.
-            <a href="{{ url_for('link_person', fid=current_family.id) }}">Link now</a>
-        </div>
-        {% endif %}
-
         <main class="container">
+            {% if view_only and current_family %}
+            <div class="banner banner-view-only">
+                You're viewing this family tree as a guest.
+                {% if share_token %}
+                <a href="{{ url_for('join_register', token=share_token.token) }}">Create an account</a> to become a member.
+                {% endif %}
+            </div>
+            {% elif current_user and current_family and membership and not membership.person_id %}
+            <div class="banner banner-info">
+                You haven't linked your profile to a family member yet.
+                <a href="{{ url_for('link_person', fid=current_family.id) }}">Link now</a>
+            </div>
+            {% endif %}
+
             {% block flashes %}
             {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}

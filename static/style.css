@@ -51,16 +51,13 @@ body, h1, h2, h3, h4, p, dl, dd, figure, blockquote { margin: 0; }
 ul, ol { margin: 0; padding: 0; }
 img { max-width: 100%; display: block; }
 
-html, body {
-    background-color: var(--bg-page);
-}
-
 body {
     font-family: 'Source Sans 3', sans-serif;
     font-size: 1rem;
     line-height: 1.6;
     padding: 0;
     margin: 0;
+    background-color: var(--bg-page);
     color: var(--text-body);
     min-height: 100vh;
 }
@@ -270,6 +267,7 @@ main.container {
     max-width: 960px;
     margin: 0 auto;
     padding: var(--space-xl) var(--space-lg);
+    padding-top: 80px;
 }
 
 .page-tree main.container {
