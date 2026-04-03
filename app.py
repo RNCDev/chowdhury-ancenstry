@@ -1084,6 +1084,8 @@ import os as _os
 
 # Run on startup (both direct and via gunicorn)
 init_db()
+from migrate import migrate as _migrate
+_migrate()
 _ensure_secret_key()
 
 if __name__ == '__main__':
