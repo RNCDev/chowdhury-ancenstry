@@ -380,6 +380,38 @@
       };
     });
 
+    // Post-layout: pull married couples toward each other.
+    // For each union where both partners are in the tree (cross-family marriage),
+    // shift the subtrees to bring the couple adjacent.
+    data.unions.forEach(function(u) {
+      var pos1 = nodePositions[u.p1];
+      var pos2 = nodePositions[u.p2];
+      if (!pos1 || !pos2) return;
+      if (pos1.y !== pos2.y) return;  // different generations, skip
+
+      // If they're already adjacent (within 1.5 SLOT), skip
+      var dist = Math.abs(pos1.x - pos2.x);
+      if (dist <= SLOT * 1.5) return;
+
+      // Move each partner 40% toward the other
+      var mid = (pos1.x + pos2.x) / 2;
+      var target1 = mid - SLOT / 2;
+      var target2 = mid + SLOT / 2;
+
+      // Determine which is left, which is right
+      if (pos1.x < pos2.x) {
+        var shift1 = (target1 - pos1.x) * 0.4;
+        var shift2 = (target2 - pos2.x) * 0.4;
+      } else {
+        var shift1 = (target2 - pos1.x) * 0.4;
+        var shift2 = (target1 - pos2.x) * 0.4;
+      }
+
+      // Shift the partner and all their offset spouses
+      pos1.x += shift1;
+      pos2.x += shift2;
+    });
+
     // Fix overlaps within each generation — spouses placed by offset may collide
     var byGen = {};
     personIds.forEach(function(id) {
@@ -388,33 +420,33 @@
       byGen[g_].push(id);
     });
 
-    Object.keys(byGen).forEach(function(g_) {
-      var members = byGen[g_].slice();
-      members.sort(function(a, b) { return nodePositions[a].x - nodePositions[b].x; });
-      for (var i = 1; i < members.length; i++) {
-        var prev = members[i - 1];
-        var cur = members[i];
-        var minDist = SLOT;
-        var gap = nodePositions[cur].x - nodePositions[prev].x;
-        if (gap < minDist) {
-          var shift = minDist - gap;
-          // Push current and all subsequent nodes right
-          for (var j = i; j < members.length; j++) {
-            nodePositions[members[j]].x += shift;
+    // Run overlap resolution multiple times to stabilize after spouse pulls
+    for (var overlapPass = 0; overlapPass < 3; overlapPass++) {
+      Object.keys(byGen).forEach(function(g_) {
+        var members = byGen[g_].slice();
+        members.sort(function(a, b) { return nodePositions[a].x - nodePositions[b].x; });
+        for (var i = 1; i < members.length; i++) {
+          var prev = members[i - 1];
+          var cur = members[i];
+          var minDist = SLOT;
+
+          // Extra space after an offset spouse (so siblings don't crowd the couple)
+          var prevIsSpouse = false;
+          data.unions.forEach(function(u) {
+            if (spouseOf[u.uid] === prev && !inTree[prev]) prevIsSpouse = true;
+          });
+          if (prevIsSpouse) minDist = SLOT * 1.15;
+
+          var gap = nodePositions[cur].x - nodePositions[prev].x;
+          if (gap < minDist) {
+            var shift = minDist - gap;
+            for (var j = i; j < members.length; j++) {
+              nodePositions[members[j]].x += shift;
+            }
           }
         }
-      }
-    });
-
-    // Re-center the primary person between their spouses after overlap resolution
-    data.unions.forEach(function(u) {
-      var primary = primaryOf[u.uid];
-      var spouse = spouseOf[u.uid];
-      if (!primary || !spouse) return;
-      if (!nodePositions[primary] || !nodePositions[spouse]) return;
-      // Ensure union midpoint aligns with children
-      // (don't move — the d3 tree already centered the primary over children)
-    });
+      });
+    }
 
     // Position union dots
     data.unions.forEach(function(u) {
