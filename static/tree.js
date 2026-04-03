@@ -622,19 +622,6 @@
           // Row-lock: only move horizontally
           pos.x += event.dx;
           d3.select(this).attr("transform", "translate(" + pos.x + "," + pos.y + ")");
-
-          // Couple-lock: move partner with us
-          var partnerId = partnerOf[id];
-          if (partnerId && nodePositions[partnerId]) {
-            var partnerPos = nodePositions[partnerId];
-            partnerPos.x += event.dx;
-            if (partnerPos.gEl) {
-              partnerPos.gEl.attr("transform", "translate(" + partnerPos.x + "," + partnerPos.y + ")");
-            }
-            recomputeUnionsFor(partnerId);
-            updateEdgesFor(partnerId);
-          }
-
           recomputeUnionsFor(id);
           updateEdgesFor(id);
         })
@@ -644,58 +631,15 @@
             window.location.href = "/family/" + familyId + "/person/" + id + "/edit";
           } else if (hasDragged && !viewOnly) {
             // Save position to server
-            var headers = { "Content-Type": "application/json", "X-CSRF-Token": csrfToken };
             fetch("/family/" + familyId + "/api/tree/layout", {
-              method: "POST", headers: headers,
+              method: "POST",
+              headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
               body: JSON.stringify({ person_id: id, x: pos.x, y: pos.y })
             });
-            // Also save partner position
-            var partnerId = partnerOf[id];
-            if (partnerId && nodePositions[partnerId]) {
-              fetch("/family/" + familyId + "/api/tree/layout", {
-                method: "POST", headers: headers,
-                body: JSON.stringify({ person_id: partnerId, x: nodePositions[partnerId].x, y: nodePositions[partnerId].y })
-              });
-            }
           }
         });
 
       nodeG.call(dragBehavior);
-
-      // Double-click: flip couple positions
-      if (!viewOnly) {
-        nodeG.on("dblclick", function(event) {
-          event.stopPropagation();
-          var partnerId = partnerOf[id];
-          if (!partnerId || !nodePositions[partnerId]) return;
-
-          // Swap x positions
-          var tmpX = pos.x;
-          pos.x = nodePositions[partnerId].x;
-          nodePositions[partnerId].x = tmpX;
-
-          // Update visuals
-          d3.select(this).attr("transform", "translate(" + pos.x + "," + pos.y + ")");
-          if (nodePositions[partnerId].gEl) {
-            nodePositions[partnerId].gEl.attr("transform", "translate(" + nodePositions[partnerId].x + "," + nodePositions[partnerId].y + ")");
-          }
-          recomputeUnionsFor(id);
-          recomputeUnionsFor(partnerId);
-          updateEdgesFor(id);
-          updateEdgesFor(partnerId);
-
-          // Save both positions
-          var headers = { "Content-Type": "application/json", "X-CSRF-Token": csrfToken };
-          fetch("/family/" + familyId + "/api/tree/layout", {
-            method: "POST", headers: headers,
-            body: JSON.stringify({ person_id: id, x: pos.x, y: pos.y })
-          });
-          fetch("/family/" + familyId + "/api/tree/layout", {
-            method: "POST", headers: headers,
-            body: JSON.stringify({ person_id: partnerId, x: nodePositions[partnerId].x, y: nodePositions[partnerId].y })
-          });
-        });
-      }
     }
 
     data.nodes.forEach(function(p) {
