@@ -386,36 +386,43 @@ def api_tree(fid):
             'birth_year': p['date_of_birth'][:4] if p['date_of_birth'] else None,
             'photo_path': p['photo_path'],
             'status': p['status'],
+            'gender': p['gender'],
         }
 
     nodes = [_person_info(pid) for pid in people]
 
-    couple_set = set()
+    # Read family_units directly
+    fus = db.execute("SELECT * FROM family_unit WHERE family_id = ?", (fid,)).fetchall()
     unions = []
-    for r in rels:
-        if r['rel_type'] in ('spouse', 'divorced'):
-            p1, p2 = min(r['person1_id'], r['person2_id']), max(r['person1_id'], r['person2_id'])
-            key = (p1, p2)
-            if key not in couple_set:
-                couple_set.add(key)
-                unions.append({'uid': f"union_{p1}_{p2}", 'p1': p1, 'p2': p2})
+    for fu in fus:
+        uid = f"fu_{fu['id']}"
+        unions.append({
+            'uid': uid,
+            'p1': fu['partner1_id'],
+            'p2': fu['partner2_id'],
+            'type': fu['union_type'],
+        })
 
-    parents_of = defaultdict(list)
-    for r in rels:
-        if r['rel_type'] in ('parent_child', 'adopted_parent_child'):
-            parents_of[r['person2_id']].append(r['person1_id'])
-
+    # Build edges from parent_child relationships
+    parent_child_rels = [r for r in rels if r['rel_type'] in ('parent_child', 'adopted_parent_child')]
     edges = []
-    for child_id, parent_ids in parents_of.items():
-        if len(parent_ids) >= 2:
-            p1, p2 = min(parent_ids[0], parent_ids[1]), max(parent_ids[0], parent_ids[1])
-            if (p1, p2) in couple_set:
-                edges.append({'from': f"union_{p1}_{p2}", 'child': child_id})
-            else:
-                for pid in parent_ids:
-                    edges.append({'from': pid, 'child': child_id})
+    for r in parent_child_rels:
+        child_id = r['person2_id']
+        fu_id = r['family_unit_id']
+        if fu_id:
+            edges.append({'from': f"fu_{fu_id}", 'child': child_id, 'birth_order': r['birth_order']})
         else:
-            edges.append({'from': parent_ids[0], 'child': child_id})
+            edges.append({'from': r['person1_id'], 'child': child_id, 'birth_order': r['birth_order']})
+
+    # Deduplicate edges (two parent_child rows per child in a couple → one edge from the family_unit)
+    seen_edges = set()
+    deduped_edges = []
+    for e in edges:
+        key = (e['from'], e['child'])
+        if key not in seen_edges:
+            seen_edges.add(key)
+            deduped_edges.append(e)
+    edges = deduped_edges
 
     # Load saved layout positions
     layout_rows = db.execute(
@@ -642,6 +649,7 @@ def _save_person(fid, person_id):
         'email': request.form.get('email', '').strip() or None,
         'linkedin_url': request.form.get('linkedin_url', '').strip() or None,
         'notes': request.form.get('notes', '').strip() or None,
+        'gender': request.form.get('gender', '').strip() or None,
     }
 
     if not data['first_name'] or not data['last_name']:
@@ -661,12 +669,12 @@ def _save_person(fid, person_id):
     if person_id is None:
         cursor = db.execute(
             """INSERT INTO person (family_id, first_name, middle_name, last_name, birth_name_first,
-                birth_name_last, date_of_birth, place_of_birth, email, linkedin_url, notes, photo_path)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                birth_name_last, date_of_birth, place_of_birth, email, linkedin_url, notes, photo_path, gender)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (fid, data['first_name'], data['middle_name'], data['last_name'],
              data['birth_name_first'], data['birth_name_last'], data['date_of_birth'],
              data['place_of_birth'], data['email'], data['linkedin_url'], data['notes'],
-             photo_path),
+             photo_path, data['gender']),
         )
         person_id = cursor.lastrowid
         _audit(db, 'add', 'person', person_id, f"Added {full_name}", family_id=fid)
@@ -675,21 +683,21 @@ def _save_person(fid, person_id):
             db.execute(
                 """UPDATE person SET first_name=?, middle_name=?, last_name=?, birth_name_first=?,
                     birth_name_last=?, date_of_birth=?, place_of_birth=?, email=?, linkedin_url=?,
-                    notes=?, photo_path=?, updated_at=datetime('now') WHERE id=? AND family_id=?""",
+                    notes=?, photo_path=?, gender=?, updated_at=datetime('now') WHERE id=? AND family_id=?""",
                 (data['first_name'], data['middle_name'], data['last_name'],
                  data['birth_name_first'], data['birth_name_last'], data['date_of_birth'],
                  data['place_of_birth'], data['email'], data['linkedin_url'], data['notes'],
-                 photo_path, person_id, fid),
+                 photo_path, data['gender'], person_id, fid),
             )
         else:
             db.execute(
                 """UPDATE person SET first_name=?, middle_name=?, last_name=?, birth_name_first=?,
                     birth_name_last=?, date_of_birth=?, place_of_birth=?, email=?, linkedin_url=?,
-                    notes=?, updated_at=datetime('now') WHERE id=? AND family_id=?""",
+                    notes=?, gender=?, updated_at=datetime('now') WHERE id=? AND family_id=?""",
                 (data['first_name'], data['middle_name'], data['last_name'],
                  data['birth_name_first'], data['birth_name_last'], data['date_of_birth'],
                  data['place_of_birth'], data['email'], data['linkedin_url'], data['notes'],
-                 person_id, fid),
+                 data['gender'], person_id, fid),
             )
         _audit(db, 'edit', 'person', person_id, f"Edited {full_name}", family_id=fid)
     db.commit()
@@ -747,6 +755,43 @@ def relationship_add(fid):
         p2_name = f"{p2['first_name']} {p2['last_name']}" if p2 else f"#{person2_id}"
         _audit(db, 'add', 'relationship', rel_id,
                f"Added {rel_type.replace('_', ' ')}: {p1_name} → {p2_name}", family_id=fid)
+
+        # Auto-create family_unit for spouse/divorced relationships
+        if rel_type in ('spouse', 'divorced'):
+            union_type = 'marriage' if rel_type == 'spouse' else 'divorced'
+            existing_fu = db.execute(
+                "SELECT id FROM family_unit WHERE family_id = ? AND partner1_id = ? AND partner2_id = ?",
+                (fid, person1_id, person2_id)
+            ).fetchone()
+            if not existing_fu:
+                db.execute(
+                    "INSERT INTO family_unit (family_id, partner1_id, partner2_id, union_type) VALUES (?, ?, ?, ?)",
+                    (fid, person1_id, person2_id, union_type)
+                )
+
+        # Auto-assign family_unit_id for parent_child relationships
+        if rel_type in ('parent_child', 'adopted_parent_child'):
+            child_id = person2_id
+            parent_id = person1_id
+            other_parent_rels = db.execute(
+                "SELECT person1_id FROM relationship WHERE person2_id = ? AND rel_type IN ('parent_child', 'adopted_parent_child') AND person1_id != ? AND family_id = ?",
+                (child_id, parent_id, fid)
+            ).fetchall()
+            for opr in other_parent_rels:
+                other_pid = opr['person1_id']
+                p1, p2 = min(parent_id, other_pid), max(parent_id, other_pid)
+                fu = db.execute(
+                    "SELECT id FROM family_unit WHERE family_id = ? AND partner1_id = ? AND partner2_id = ?",
+                    (fid, p1, p2)
+                ).fetchone()
+                if fu:
+                    db.execute("UPDATE relationship SET family_unit_id = ? WHERE id = ?", (fu['id'], rel_id))
+                    db.execute(
+                        "UPDATE relationship SET family_unit_id = ? WHERE person1_id = ? AND person2_id = ? AND rel_type IN ('parent_child', 'adopted_parent_child') AND family_id = ?",
+                        (fu['id'], other_pid, child_id, fid)
+                    )
+                    break
+
         db.commit()
         if wants_json:
             other = db.execute("SELECT first_name, last_name FROM person WHERE id = ? AND family_id = ?",
