@@ -817,7 +817,8 @@ def relationship_delete(fid, rel_id):
     person_id = int(request.form.get('person_id', 0))
     db = get_db()
     rel = db.execute("""
-        SELECT r.rel_type, p1.first_name AS p1f, p1.last_name AS p1l,
+        SELECT r.rel_type, r.person1_id, r.person2_id,
+               p1.first_name AS p1f, p1.last_name AS p1l,
                p2.first_name AS p2f, p2.last_name AS p2l
         FROM relationship r
         JOIN person p1 ON r.person1_id = p1.id
@@ -828,6 +829,21 @@ def relationship_delete(fid, rel_id):
                f"Removed {rel['rel_type'].replace('_', ' ')}: {rel['p1f']} {rel['p1l']} → {rel['p2f']} {rel['p2l']}",
                family_id=fid)
     db.execute("DELETE FROM relationship WHERE id = ? AND family_id = ?", (rel_id, fid))
+
+    # Clean up childless family_unit when spouse/divorced relationship is deleted
+    if rel and rel['rel_type'] in ('spouse', 'divorced'):
+        p1, p2 = min(rel['person1_id'], rel['person2_id']), max(rel['person1_id'], rel['person2_id'])
+        fu = db.execute(
+            "SELECT id FROM family_unit WHERE family_id = ? AND partner1_id = ? AND partner2_id = ?",
+            (fid, p1, p2)
+        ).fetchone()
+        if fu:
+            child_count = db.execute(
+                "SELECT COUNT(*) FROM relationship WHERE family_unit_id = ?", (fu['id'],)
+            ).fetchone()[0]
+            if child_count == 0:
+                db.execute("DELETE FROM family_unit WHERE id = ?", (fu['id'],))
+
     db.commit()
     if request.headers.get('Accept') == 'application/json':
         return jsonify({"ok": True})
