@@ -207,87 +207,126 @@
       return tempX[fromId] !== undefined ? tempX[fromId] : NaN;
     }
 
+    // Build spouse groups using union-find — clusters of people in the same
+    // generation connected by marriage edges.
+    function buildSpouseGroups(members) {
+      var par = {};
+      members.forEach(function(id) { par[id] = id; });
+      function find(x) { while (par[x] !== x) { par[x] = par[par[x]]; x = par[x]; } return x; }
+      function unite(a, b) { par[find(a)] = find(b); }
+      members.forEach(function(id) {
+        sameGenSpouses(id).forEach(function(sid) {
+          if (par[sid] !== undefined) unite(id, sid);
+        });
+      });
+      var groupMap = {};
+      members.forEach(function(id) {
+        var r = find(id);
+        if (!groupMap[r]) groupMap[r] = [];
+        groupMap[r].push(id);
+      });
+      return Object.values(groupMap);
+    }
+
+    // Order a spouse group: person with parents (or most children) first,
+    // then BFS along spouse edges so remarriages chain correctly.
+    function orderSpouseGroup(group) {
+      if (group.length <= 1) return group;
+      // Prefer person with parents as the anchor, else most children
+      var scored = group.map(function(id) {
+        var hasParent = parentsOf[id] ? 1 : 0;
+        var kidCount = 0;
+        data.unions.forEach(function(u) {
+          if (u.p1 === id || u.p2 === id) kidCount += (childrenOf[u.uid] || []).length;
+        });
+        return { id: id, score: hasParent * 1000 + kidCount };
+      });
+      scored.sort(function(a, b) { return b.score - a.score; });
+      var anchor = scored[0].id;
+
+      var visited = {};
+      var ordered = [];
+      var queue = [anchor];
+      visited[anchor] = true;
+      while (queue.length > 0) {
+        var cur = queue.shift();
+        ordered.push(cur);
+        sameGenSpouses(cur).forEach(function(sid) {
+          if (!visited[sid] && group.indexOf(sid) >= 0) {
+            visited[sid] = true;
+            queue.push(sid);
+          }
+        });
+      }
+      group.forEach(function(id) { if (!visited[id]) ordered.push(id); });
+      return ordered;
+    }
+
     // Step 3: initial placement — slot-based, generation by generation
     var tempX = {};
 
     sortedGens.forEach(function(g_, genIdx) {
       var members = byGen[g_].slice();
+      var groups = buildSpouseGroups(members);
 
-      if (genIdx === 0) {
-        // Root generation: just place left-to-right, spouses adjacent
-        var slot = 0;
-        var placed = {};
-        members.forEach(function(id) {
-          if (placed[id]) return;
-          tempX[id] = slot++;
-          placed[id] = true;
-          sameGenSpouses(id).forEach(function(sid) {
-            if (!placed[sid]) {
-              tempX[sid] = slot++;
-              placed[sid] = true;
-            }
-          });
-          slot += 0.5; // small gap between unrelated couples in gen 0
-        });
-        return;
+      // Compute desired X for each group based on the best parent midpoint
+      // among its members. Groups without parents get NaN.
+      function groupDesiredX(group) {
+        var bestX = NaN;
+        for (var i = 0; i < group.length; i++) {
+          var px = parentMidX(group[i]);
+          if (!isNaN(px)) {
+            if (isNaN(bestX)) bestX = px;
+            else bestX = (bestX + px) / 2; // average if multiple have parents
+          }
+        }
+        return bestX;
       }
 
-      // For later generations: compute desired X for each member based on parents
-      // Then sort by desired X and place left-to-right keeping spouses adjacent.
-
-      // Compute desired X for each member
-      var desiredX = {};
-      members.forEach(function(id) {
-        var px = parentMidX(id);
-        desiredX[id] = isNaN(px) ? 0 : px;
+      var groupInfos = groups.map(function(group) {
+        return { group: group, desired: groupDesiredX(group) };
       });
 
-      // Sort by desired X (stable-ish: ties broken by id)
-      members.sort(function(a, b) {
-        var diff = desiredX[a] - desiredX[b];
-        return diff !== 0 ? diff : a - b;
+      // Sort groups: those with a desired X by that value,
+      // those without (married-in with no parents) get placed near their spouse's
+      // group — but since they ARE in the same group via union-find, this
+      // case shouldn't arise. As fallback, sort by first member id.
+      groupInfos.sort(function(a, b) {
+        var ax = isNaN(a.desired) ? Infinity : a.desired;
+        var bx = isNaN(b.desired) ? Infinity : b.desired;
+        if (ax !== bx) return ax - bx;
+        return a.group[0] - b.group[0];
       });
 
-      // Place in order, keeping spouses adjacent
-      var placed = {};
-      var ordered = [];
-      members.forEach(function(id) {
-        if (placed[id]) return;
-        ordered.push(id);
-        placed[id] = true;
-        sameGenSpouses(id).forEach(function(sid) {
-          if (!placed[sid]) {
-            ordered.push(sid);
-            placed[sid] = true;
-          }
-        });
-      });
+      // Place groups left to right
+      var slot = 0;
+      groupInfos.forEach(function(gi) {
+        var ordered = orderSpouseGroup(gi.group);
 
-      // Assign initial slot positions — place each person/group at their desired X
-      // but ensure minimum spacing
-      // First pass: assign desired positions
-      ordered.forEach(function(id) {
-        if (desiredX[id] !== undefined && !isNaN(desiredX[id])) {
-          tempX[id] = desiredX[id];
+        // For non-root generations with a desired X, start at that position
+        // (will be corrected by overlap resolution)
+        if (genIdx > 0 && !isNaN(gi.desired)) {
+          var startSlot = gi.desired - (ordered.length - 1) / 2;
+          if (startSlot < slot) startSlot = slot;
+          ordered.forEach(function(id, i) {
+            tempX[id] = startSlot + i;
+          });
+          slot = startSlot + ordered.length + 0.5;
         } else {
-          // Spouse without parents — place near their partner
-          var spouses = sameGenSpouses(id);
-          for (var i = 0; i < spouses.length; i++) {
-            if (tempX[spouses[i]] !== undefined) {
-              tempX[id] = tempX[spouses[i]] + 1;
-              return;
-            }
-          }
-          tempX[id] = 0;
+          ordered.forEach(function(id, i) {
+            tempX[id] = slot + i;
+          });
+          slot += ordered.length + 0.5;
         }
       });
 
-      // Enforce minimum spacing (left to right)
-      for (var i = 1; i < ordered.length; i++) {
-        var prev = ordered[i - 1];
-        var cur = ordered[i];
-        if (tempX[cur] - tempX[prev] < 1) {
-          tempX[cur] = tempX[prev] + 1;
+      // Enforce minimum spacing (may have been violated by desired-X placement)
+      var allInGen = [];
+      groupInfos.forEach(function(gi) { allInGen = allInGen.concat(gi.group); });
+      allInGen.sort(function(a, b) { return (tempX[a] || 0) - (tempX[b] || 0); });
+      for (var i = 1; i < allInGen.length; i++) {
+        if (tempX[allInGen[i]] - tempX[allInGen[i - 1]] < 1) {
+          tempX[allInGen[i]] = tempX[allInGen[i - 1]] + 1;
         }
       }
     });
@@ -322,26 +361,31 @@
         tempX[u.p2] = (tempX[u.p2] || 0) + shift;
       });
 
-      // (c) Keep spouses adjacent (pull toward each other)
+      // (c) Keep spouses adjacent (pull toward each other, preserve left/right order)
       data.unions.forEach(function(u) {
         if (gen[u.p1] !== gen[u.p2]) return;
         var x1 = tempX[u.p1] || 0;
         var x2 = tempX[u.p2] || 0;
         var mid = (x1 + x2) / 2;
-        // Target: 1 slot apart, centered at midpoint
-        tempX[u.p1] = mid - 0.5;
-        tempX[u.p2] = mid + 0.5;
+        var leftId = x1 <= x2 ? u.p1 : u.p2;
+        var rightId = x1 <= x2 ? u.p2 : u.p1;
+        tempX[leftId] = mid - 0.5;
+        tempX[rightId] = mid + 0.5;
       });
 
-      // (d) Enforce minimum spacing within each generation (left to right)
+      // (d) Enforce minimum spacing — push apart overlapping nodes, split the
+      //     displacement so neither side drifts excessively
       sortedGens.forEach(function(g_) {
         var members = byGen[g_].slice();
         members.sort(function(a, b) { return (tempX[a] || 0) - (tempX[b] || 0); });
         for (var i = 1; i < members.length; i++) {
           var prev = members[i - 1];
           var cur = members[i];
-          if ((tempX[cur] || 0) - (tempX[prev] || 0) < 1) {
-            tempX[cur] = (tempX[prev] || 0) + 1;
+          var gap = (tempX[cur] || 0) - (tempX[prev] || 0);
+          if (gap < 1) {
+            var fix = (1 - gap) / 2;
+            tempX[prev] = (tempX[prev] || 0) - fix;
+            tempX[cur] = (tempX[cur] || 0) + fix;
           }
         }
       });
