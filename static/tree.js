@@ -5,6 +5,7 @@
 
   const familyId = container.dataset.familyId;
   const viewOnly = container.dataset.viewOnly === 'true';
+  const csrfToken = container.dataset.csrfToken || '';
   const width = container.clientWidth;
   const height = container.clientHeight;
 
@@ -608,6 +609,15 @@
       });
     }
 
+    // Apply saved layout positions (override algorithm)
+    var savedLayout = data.layout || {};
+    personIds.forEach(function(id) {
+      if (savedLayout[id] && nodePositions[id]) {
+        nodePositions[id].x = savedLayout[id].x;
+        nodePositions[id].y = savedLayout[id].y;
+      }
+    });
+
     // Position union dots
     data.unions.forEach(function(u) {
       var p1pos = nodePositions[u.p1];
@@ -719,6 +729,16 @@
           d3.select(this).style("cursor", "grab");
           if (!hasDragged && !viewOnly) {
             window.location.href = "/family/" + familyId + "/person/" + id + "/edit";
+          } else if (hasDragged && !viewOnly) {
+            // Save position to server
+            fetch("/family/" + familyId + "/api/tree/layout", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-CSRF-Token": csrfToken
+              },
+              body: JSON.stringify({ person_id: id, x: pos.x, y: pos.y })
+            });
           }
         });
 

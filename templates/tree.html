@@ -6,7 +6,7 @@
 
 {% block content %}
 {% if people %}
-<div id="tree-container" data-family-id="{{ fid }}" data-view-only="{{ 'true' if view_only else 'false' }}"></div>
+<div id="tree-container" data-family-id="{{ fid }}" data-view-only="{{ 'true' if view_only else 'false' }}" data-csrf-token="{{ session.get('csrf_token', '') }}"></div>
 {% else %}
 <div class="empty-state tree-empty">
     {% if view_only %}

@@ -80,9 +80,20 @@ CREATE TABLE IF NOT EXISTS audit_log (
     created_at TEXT DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS tree_layout (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    family_id INTEGER NOT NULL REFERENCES family(id) ON DELETE CASCADE,
+    person_id INTEGER NOT NULL REFERENCES person(id) ON DELETE CASCADE,
+    x REAL NOT NULL,
+    y REAL NOT NULL,
+    updated_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(family_id, person_id)
+);
+
 -- Performance indexes
 CREATE INDEX IF NOT EXISTS idx_person_family ON person(family_id);
 CREATE INDEX IF NOT EXISTS idx_membership_user ON family_membership(user_id);
 CREATE INDEX IF NOT EXISTS idx_share_token_family ON family_share_token(family_id);
 CREATE INDEX IF NOT EXISTS idx_audit_family ON audit_log(family_id);
 CREATE INDEX IF NOT EXISTS idx_relationship_family ON relationship(family_id);
+CREATE INDEX IF NOT EXISTS idx_tree_layout_family ON tree_layout(family_id);

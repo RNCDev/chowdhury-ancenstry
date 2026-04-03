@@ -17,7 +17,7 @@ from db import DATABASE, close_db, get_db, init_db
 app = Flask(__name__)
 app.teardown_appcontext(close_db)
 
-APP_VERSION = "0.9.12"
+APP_VERSION = "0.10.0"
 SHARE_TOKEN_MAX_AGE_DAYS = 30
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
@@ -417,7 +417,43 @@ def api_tree(fid):
         else:
             edges.append({'from': parent_ids[0], 'child': child_id})
 
-    return jsonify({'nodes': nodes, 'unions': unions, 'edges': edges})
+    # Load saved layout positions
+    layout_rows = db.execute(
+        "SELECT person_id, x, y FROM tree_layout WHERE family_id = ?", (fid,)
+    ).fetchall()
+    layout = {row['person_id']: {'x': row['x'], 'y': row['y']} for row in layout_rows}
+
+    return jsonify({'nodes': nodes, 'unions': unions, 'edges': edges, 'layout': layout})
+
+
+@app.route('/family/<int:fid>/api/tree/layout', methods=['POST'])
+@login_required
+@family_access_required()
+def api_save_layout(fid):
+    data = request.get_json()
+    if not data or 'person_id' not in data or 'x' not in data or 'y' not in data:
+        return jsonify({'error': 'Missing fields'}), 400
+
+    db = get_db()
+    db.execute(
+        """INSERT INTO tree_layout (family_id, person_id, x, y, updated_at)
+           VALUES (?, ?, ?, ?, datetime('now'))
+           ON CONFLICT(family_id, person_id)
+           DO UPDATE SET x = excluded.x, y = excluded.y, updated_at = datetime('now')""",
+        (fid, data['person_id'], data['x'], data['y']),
+    )
+    db.commit()
+    return jsonify({'ok': True})
+
+
+@app.route('/family/<int:fid>/api/tree/layout', methods=['DELETE'])
+@login_required
+@family_access_required('admin')
+def api_reset_layout(fid):
+    db = get_db()
+    db.execute("DELETE FROM tree_layout WHERE family_id = ?", (fid,))
+    db.commit()
+    return jsonify({'ok': True})
 
 
 @app.route('/family/<int:fid>/api/history')
