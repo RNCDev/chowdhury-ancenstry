@@ -319,27 +319,40 @@
     });
 
     // Sort children of person nodes (union children): place unions whose
-    // other parent is on the left side first
+    // descendants marry into rightward families on the right side.
     Object.keys(treeChildren).forEach(function(parentId) {
       var pid = parseInt(parentId);
       if (isNaN(pid)) return;
       var kids = treeChildren[parentId];
       if (!kids || kids.length <= 1) return;
 
-      // Only sort union children (string ids starting with "union_")
       var unionKids = kids.filter(function(k) { return typeof k === 'string' && k.startsWith('union_'); });
       if (unionKids.length <= 1) return;
 
-      // Sort unions by the other parent's root subtree position
+      // For each union, find the max root subtree index that any of its
+      // children's spouses belong to. Higher index = more rightward.
+      function unionSpouseReach(uid) {
+        var maxIdx = -1;
+        var uKids = childrenOf[uid] || [];
+        uKids.forEach(function(kid) {
+          (spousesOf[kid] || []).forEach(function(sid) {
+            var st = rootSubtree[sid];
+            if (st !== undefined && rootOrder[st] !== undefined) {
+              if (rootOrder[st] > maxIdx) maxIdx = rootOrder[st];
+            }
+          });
+        });
+        return maxIdx;
+      }
+
       unionKids.sort(function(a, b) {
-        var uA = unionByUid[a], uB = unionByUid[b];
-        if (!uA || !uB) return 0;
-        var otherA = uA.p1 === pid ? uA.p2 : uA.p1;
-        var otherB = uB.p1 === pid ? uB.p2 : uB.p1;
-        var stA = rootSubtree[otherA], stB = rootSubtree[otherB];
-        var idxA = stA !== undefined ? (rootOrder[stA] !== undefined ? rootOrder[stA] : 0) : 0;
-        var idxB = stB !== undefined ? (rootOrder[stB] !== undefined ? rootOrder[stB] : 0) : 0;
-        return idxA - idxB;
+        var reachA = unionSpouseReach(a);
+        var reachB = unionSpouseReach(b);
+        // Unions with no cross-family children go left (lower index)
+        if (reachA === -1 && reachB === -1) return 0;
+        if (reachA === -1) return -1;
+        if (reachB === -1) return 1;
+        return reachA - reachB;
       });
 
       // Rebuild kids array with sorted unions in their original positions
@@ -465,31 +478,54 @@
       }
     });
 
-    // Place offset spouses adjacent to their primary partner
+    // Place offset spouses adjacent to their primary partner.
+    // Direction: place spouse on the side toward the union's children,
+    // or if childless, toward the outside of the sibling group.
     data.unions.forEach(function(u) {
       var spouse = spouseOf[u.uid];
       var primary = primaryOf[u.uid];
       if (!spouse || !primary) return;
-      if (nodePositions[spouse]) return;  // already placed (e.g., also primary in another union)
+      if (nodePositions[spouse]) return;
       var pPos = nodePositions[primary];
       if (!pPos) return;
 
-      // Place spouse to the right of primary (or left if primary has another
-      // spouse already to the right)
-      var offset = SLOT;
+      // Determine direction: where are this union's children?
+      var kids = childrenOf[u.uid] || [];
+      var direction = 1;  // default: right
 
-      // Check if there's already a spouse on the right
-      var existingRight = false;
+      if (kids.length > 0) {
+        // Place spouse on the side toward the children's center
+        var kidCenterX = 0;
+        var kidCount = 0;
+        kids.forEach(function(k) {
+          if (nodePositions[k]) { kidCenterX += nodePositions[k].x; kidCount++; }
+        });
+        if (kidCount > 0) {
+          kidCenterX /= kidCount;
+          direction = kidCenterX >= pPos.x ? 1 : -1;
+        }
+      } else {
+        // Childless: place toward the outside (away from primary's parent union center)
+        var parentFrom = parentsOf[primary];
+        if (parentFrom && nodePositions[parentFrom]) {
+          direction = pPos.x >= nodePositions[parentFrom].x ? 1 : -1;
+        }
+      }
+
+      // Check if there's already a spouse on that side
+      var blocked = false;
       data.unions.forEach(function(u2) {
         if (u2.uid === u.uid) return;
         var otherSpouse = spouseOf[u2.uid];
         if (primaryOf[u2.uid] === primary && otherSpouse && nodePositions[otherSpouse]) {
-          if (nodePositions[otherSpouse].x > pPos.x) existingRight = true;
+          if (direction > 0 && nodePositions[otherSpouse].x > pPos.x) blocked = true;
+          if (direction < 0 && nodePositions[otherSpouse].x < pPos.x) blocked = true;
         }
       });
+      if (blocked) direction = -direction;
 
       nodePositions[spouse] = {
-        x: pPos.x + (existingRight ? -offset : offset),
+        x: pPos.x + direction * SLOT,
         y: pPos.y
       };
     });
