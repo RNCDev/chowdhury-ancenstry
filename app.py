@@ -702,7 +702,7 @@ def _save_person(fid, person_id):
         _audit(db, 'edit', 'person', person_id, f"Edited {full_name}", family_id=fid)
     db.commit()
     flash('Person saved.', 'success')
-    return redirect(url_for('person_edit', fid=fid, person_id=person_id))
+    return redirect(url_for('person_list', fid=fid))
 
 
 # --- Relationship routes ---
