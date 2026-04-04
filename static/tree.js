@@ -509,12 +509,11 @@
       });
     }
 
-    // Apply saved layout positions (override algorithm)
+    // Apply saved layout positions (x only — y is always generation-based)
     var savedLayout = data.layout || {};
     personIds.forEach(function(id) {
       if (savedLayout[id] && nodePositions[id]) {
         nodePositions[id].x = savedLayout[id].x;
-        nodePositions[id].y = savedLayout[id].y;
       }
     });
 
