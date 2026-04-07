@@ -64,13 +64,17 @@ block content %}
 {% block scripts %}
 <script src="{{ url_for('static', filename='vine.js') }}"></script>
 <script>
+function activateTab(tabId) {
+    document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('tab-active'); });
+    document.querySelectorAll('.tab-panel').forEach(function(p) { p.style.display = 'none'; });
+    var panel = document.getElementById(tabId);
+    var btn = document.querySelector('[data-tab="' + tabId + '"]');
+    if (panel) panel.style.display = '';
+    if (btn) btn.classList.add('tab-active');
+}
 document.querySelectorAll('.tab-btn').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-        document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('tab-active'); });
-        document.querySelectorAll('.tab-panel').forEach(function(p) { p.style.display = 'none'; });
-        btn.classList.add('tab-active');
-        document.getElementById(btn.dataset.tab).style.display = '';
-    });
+    btn.addEventListener('click', function() { activateTab(btn.dataset.tab); });
 });
+if (new URLSearchParams(location.search).get('tab') === 'login') activateTab('login-tab');
 </script>
 {% endblock %}

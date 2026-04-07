@@ -205,6 +205,52 @@ body {
     }
 }
 
+/* ── Join banner (view-only guests) ── */
+.join-banner {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--bg-card);
+    border-top: 1px solid var(--border-default);
+    padding: 0.6rem 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+    z-index: 100;
+    box-shadow: 0 -2px 8px rgba(90, 62, 40, 0.08);
+}
+
+.join-banner-content {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    flex-wrap: wrap;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+}
+
+.join-banner-actions {
+    display: flex;
+    gap: var(--space-sm);
+}
+
+.join-banner-dismiss {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.25rem;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0 0.25rem;
+    flex-shrink: 0;
+}
+
+.join-banner-dismiss:hover {
+    color: var(--text-primary);
+}
+
 /* ── Share FAB ── */
 .share-fab {
     position: fixed;

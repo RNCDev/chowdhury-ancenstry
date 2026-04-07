@@ -17,7 +17,7 @@ from db import DATABASE, close_db, get_db, init_db
 app = Flask(__name__)
 app.teardown_appcontext(close_db)
 
-APP_VERSION = "0.8.1"
+APP_VERSION = "0.8.2"
 SHARE_TOKEN_MAX_AGE_DAYS = 30
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')

@@ -17,6 +17,19 @@
 </div>
 {% endif %}
 
+{% if view_only and share_token %}
+<div class="join-banner" id="joinBanner">
+    <div class="join-banner-content">
+        <span>You're viewing <strong>{{ current_family.name }}</strong> as a guest.</span>
+        <div class="join-banner-actions">
+            <a href="{{ url_for('join_register', token=share_token.token) }}" class="btn btn-sm">Create Account</a>
+            <a href="{{ url_for('join_register', token=share_token.token) }}?tab=login" class="btn btn-sm btn-secondary">Log In</a>
+        </div>
+    </div>
+    <button class="join-banner-dismiss" id="joinBannerDismiss" aria-label="Dismiss">×</button>
+</div>
+{% endif %}
+
 {% if not view_only and share_token %}
 <a href="{{ url_for('family_settings', fid=fid) }}" class="share-fab" id="shareFab" aria-label="Share family tree"
    data-share-url="{{ url_for('join_family', token=share_token.token, _external=True) }}">
@@ -35,6 +48,18 @@
 <script src="{{ url_for('static', filename='tree.js') }}"></script>
 {% endif %}
 <script>
+// Join banner dismiss
+(function() {
+    var banner = document.getElementById('joinBanner');
+    var dismiss = document.getElementById('joinBannerDismiss');
+    if (banner && dismiss) {
+        if (sessionStorage.getItem('joinBannerDismissed')) banner.style.display = 'none';
+        dismiss.addEventListener('click', function() {
+            banner.style.display = 'none';
+            sessionStorage.setItem('joinBannerDismissed', '1');
+        });
+    }
+})();
 // Prevent browser-level pinch/ctrl+scroll zoom on the tree page
 document.addEventListener('wheel', function(e) { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
 document.addEventListener('gesturestart', function(e) { e.preventDefault(); }, { passive: false });
