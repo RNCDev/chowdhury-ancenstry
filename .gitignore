@@ -1,12 +1,50 @@
-family.db
-uploads/
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtualenvs
+venv/
+.venv/
+env/
+
+# Secrets / env
 .env
-.superpowers/
-.worktrees/
-docs/superpowers/
+.env.*
+
+# Local data & uploads
+family.db
+family.db-journal
+family.db-wal
+family.db-shm
+uploads/
+*.b64
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node (if tooling ever gets added)
 node_modules/
 package.json
 package-lock.json
-.vscode/
+
+# Claude / superpowers scratch
+.claude/
+.superpowers/
+.worktrees/
+docs/superpowers/
+
+# Logs
+*.log
