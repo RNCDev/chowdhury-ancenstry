@@ -1,4 +1,4 @@
-# Family Treat
+# Family Treet
 
 A multi-user family tree web app. Anyone can register, spin up their own tree, and invite relatives via share links.
 

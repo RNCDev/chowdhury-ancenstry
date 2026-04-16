@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Family Treat — a multi-user family tree web app built with Flask + SQLite + D3.js. Supports multiple families with invite-based membership, user accounts with roles (admin/member), and interactive tree visualization. Server-rendered Jinja2 templates, vanilla CSS (no framework).
+Family Treet — a multi-user family tree web app built with Flask + SQLite + D3.js. Supports multiple families with invite-based membership, user accounts with roles (admin/member), and interactive tree visualization. Server-rendered Jinja2 templates, vanilla CSS (no framework).
 
 ## Development
 
