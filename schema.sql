@@ -113,4 +113,6 @@ CREATE INDEX IF NOT EXISTS idx_membership_user ON family_membership(user_id);
 CREATE INDEX IF NOT EXISTS idx_share_token_family ON family_share_token(family_id);
 CREATE INDEX IF NOT EXISTS idx_audit_family ON audit_log(family_id);
 CREATE INDEX IF NOT EXISTS idx_relationship_family ON relationship(family_id);
+CREATE INDEX IF NOT EXISTS idx_relationship_person1 ON relationship(person1_id);
+CREATE INDEX IF NOT EXISTS idx_relationship_person2 ON relationship(person2_id);
 CREATE INDEX IF NOT EXISTS idx_tree_layout_family ON tree_layout(family_id);

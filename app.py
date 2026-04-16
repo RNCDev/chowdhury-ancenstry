@@ -17,7 +17,7 @@ from db import DATABASE, close_db, get_db, init_db
 app = Flask(__name__)
 app.teardown_appcontext(close_db)
 
-APP_VERSION = "0.8.2"
+APP_VERSION = "0.8.3"
 SHARE_TOKEN_MAX_AGE_DAYS = 30
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
@@ -437,17 +437,29 @@ def api_tree(fid):
 @login_required
 @family_access_required()
 def api_save_layout(fid):
-    data = request.get_json()
+    data = request.get_json(silent=True)
     if not data or 'person_id' not in data or 'x' not in data or 'y' not in data:
         return jsonify({'error': 'Missing fields'}), 400
+    try:
+        person_id = int(data['person_id'])
+        x = float(data['x'])
+        y = float(data['y'])
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Invalid field types'}), 400
 
     db = get_db()
+    # Verify person belongs to this family (prevents cross-family layout writes)
+    owned = db.execute(
+        "SELECT id FROM person WHERE id = ? AND family_id = ?", (person_id, fid)
+    ).fetchone()
+    if not owned:
+        return jsonify({'error': 'Invalid person'}), 400
     db.execute(
         """INSERT INTO tree_layout (family_id, person_id, x, y, updated_at)
            VALUES (?, ?, ?, ?, datetime('now'))
            ON CONFLICT(family_id, person_id)
            DO UPDATE SET x = excluded.x, y = excluded.y, updated_at = datetime('now')""",
-        (fid, data['person_id'], data['x'], data['y']),
+        (fid, person_id, x, y),
     )
     db.commit()
     return jsonify({'ok': True})
@@ -749,10 +761,13 @@ def relationship_add(fid):
         )
         rel_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
         other_id_val = person2_id if person1_id == person_id else person1_id
-        p1 = db.execute("SELECT first_name, last_name FROM person WHERE id = ? AND family_id = ?", (person1_id, fid)).fetchone()
-        p2 = db.execute("SELECT first_name, last_name FROM person WHERE id = ? AND family_id = ?", (person2_id, fid)).fetchone()
-        p1_name = f"{p1['first_name']} {p1['last_name']}" if p1 else f"#{person1_id}"
-        p2_name = f"{p2['first_name']} {p2['last_name']}" if p2 else f"#{person2_id}"
+        name_rows = db.execute(
+            "SELECT id, first_name, last_name FROM person WHERE id IN (?, ?) AND family_id = ?",
+            (person1_id, person2_id, fid),
+        ).fetchall()
+        names = {r['id']: f"{r['first_name']} {r['last_name']}" for r in name_rows}
+        p1_name = names.get(person1_id, f"#{person1_id}")
+        p2_name = names.get(person2_id, f"#{person2_id}")
         _audit(db, 'add', 'relationship', rel_id,
                f"Added {rel_type.replace('_', ' ')}: {p1_name} → {p2_name}", family_id=fid)
 
@@ -794,12 +809,10 @@ def relationship_add(fid):
 
         db.commit()
         if wants_json:
-            other = db.execute("SELECT first_name, last_name FROM person WHERE id = ? AND family_id = ?",
-                               (other_id_val, fid)).fetchone()
             return jsonify({
                 "ok": True, "rel_id": rel_id,
                 "label": _rel_display_label(rel_type, person1_id, person_id),
-                "person_name": f"{other['first_name']} {other['last_name']}",
+                "person_name": names.get(other_id_val, f"#{other_id_val}"),
                 "person_id": other_id_val,
             })
         flash('Relationship added.', 'success')
@@ -885,7 +898,7 @@ def family_settings(fid):
 
 @app.route('/family/<int:fid>/share/generate', methods=['POST'])
 @login_required
-@family_access_required()
+@family_access_required(role='admin')
 def share_generate(fid):
     token = secrets.token_urlsafe(32)
     db = get_db()
@@ -1050,9 +1063,29 @@ def link_person(fid):
     if request.method == 'POST':
         person_id = request.form.get('person_id', '').strip()
         if person_id:
+            try:
+                pid = int(person_id)
+            except ValueError:
+                flash('Invalid person selection.', 'error')
+                return redirect(url_for('link_person', fid=fid))
+            # Verify person belongs to this family (prevents IDOR across families)
+            owned = db.execute(
+                "SELECT id FROM person WHERE id = ? AND family_id = ?", (pid, fid)
+            ).fetchone()
+            if not owned:
+                flash('Invalid person selection.', 'error')
+                return redirect(url_for('link_person', fid=fid))
+            # Ensure the person isn't already linked to another user in this family
+            already_linked = db.execute(
+                "SELECT id FROM family_membership WHERE family_id = ? AND person_id = ? AND user_id != ?",
+                (fid, pid, session['user_id']),
+            ).fetchone()
+            if already_linked:
+                flash('That person is already linked to another account.', 'error')
+                return redirect(url_for('link_person', fid=fid))
             db.execute(
                 "UPDATE family_membership SET person_id = ? WHERE user_id = ? AND family_id = ?",
-                (int(person_id), session['user_id'], fid),
+                (pid, session['user_id'], fid),
             )
             db.commit()
             flash('Profile linked.', 'success')

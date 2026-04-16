@@ -110,6 +110,10 @@ def migrate():
                 (fu_id, parent_id, child_id, fid)
             )
 
+    # Add FK indexes on relationship (hot path for person lookups)
+    db.execute("CREATE INDEX IF NOT EXISTS idx_relationship_person1 ON relationship(person1_id)")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_relationship_person2 ON relationship(person2_id)")
+
     db.commit()
     db.close()
     print("Migration complete.")
