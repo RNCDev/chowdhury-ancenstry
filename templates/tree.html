@@ -8,11 +8,14 @@
 {% if people %}
 <div id="tree-container" data-family-id="{{ fid }}" data-view-only="{{ 'true' if view_only else 'false' }}" data-csrf-token="{{ session.get('csrf_token', '') }}"></div>
 {% else %}
-<div class="empty-state tree-empty">
+<div class="empty-state tree-empty onboarding-card">
     {% if view_only %}
-    This family tree has no people yet.
+    <h3>This family tree is empty</h3>
+    <p>There are no people in this tree yet.</p>
     {% else %}
-    No people in this family yet. <a href="{{ url_for('person_new', fid=fid) }}">Add someone</a> to get started.
+    <h3>Welcome to {{ current_family.name }}</h3>
+    <p>Your tree is empty. Start by adding yourself, then add parents, siblings, children, and spouses to grow it out.</p>
+    <p><a href="{{ url_for('person_new', fid=fid) }}" class="btn-primary-sm">Add the first person</a></p>
     {% endif %}
 </div>
 {% endif %}

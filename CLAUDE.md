@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A multi-user family tree web app built with Flask + SQLite + D3.js. Supports multiple families with invite-based membership, user accounts with roles (admin/member), and interactive tree visualization. Server-rendered Jinja2 templates, vanilla CSS (no framework).
+Family Treat — a multi-user family tree web app built with Flask + SQLite + D3.js. Supports multiple families with invite-based membership, user accounts with roles (admin/member), and interactive tree visualization. Server-rendered Jinja2 templates, vanilla CSS (no framework).
 
 ## Development
 
@@ -12,9 +12,10 @@ A multi-user family tree web app built with Flask + SQLite + D3.js. Supports mul
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-python seed.py          # populate initial family data (7 people, 3 family units)
 python app.py           # runs at http://localhost:8080
 ```
+
+There is no seed script. Register a user at `/register`, then create a family at `/family/new`.
 
 No test suite exists. No linter is configured.
 
@@ -38,7 +39,6 @@ Migrations run automatically on startup via `migrate.py` (called from `app.py` a
 - **`db.py`** — SQLite connection helper with `get_db()` (enables foreign keys) and `init_db()` (runs `schema.sql`)
 - **`migrate.py`** — Idempotent migration script for existing databases. Adds `family_unit` table, `gender` column to person, `family_unit_id`/`birth_order` to relationship. Backfills family units from existing spouse relationships. Called automatically on app startup.
 - **`schema.sql`** — Tables: `user`, `family`, `family_membership`, `family_share_token`, `person`, `family_unit`, `relationship`, `app_config`, `audit_log`, `tree_layout`
-- **`seed.py`** — Populates the initial 7-person, 3-generation Chowdhury/Norieka family with 3 family units. Creates admin user (admin/admin). Skips if data already exists.
 - **`static/style.css`** — All styles. Vanilla CSS with custom properties. No CSS framework.
 - **`static/tree.js`** — D3.js tree visualization with spouse-collapsing layout algorithm, button-based zoom, row-locked dragging, and layout persistence.
 - **`static/form.js`** — Form tab switching and AJAX relationship add/remove on the person edit page.

@@ -1140,6 +1140,18 @@ button:hover, [type="submit"]:hover {
     color: var(--accent-link);
 }
 
+.onboarding-card h3 {
+    color: var(--text-primary);
+    margin-bottom: var(--space-sm);
+}
+.onboarding-card p {
+    margin: var(--space-sm) auto;
+    max-width: 32rem;
+}
+.onboarding-card .btn-primary-sm {
+    margin-top: var(--space-md);
+}
+
 /* ── Login page ── */
 .page-login {
     background-color: var(--bg-page);
@@ -1522,6 +1534,12 @@ button:hover, [type="submit"]:hover {
     padding: 0.45rem 0.7rem;
     color: var(--text-muted);
     cursor: text;
+}
+.share-link-actions {
+    display: flex;
+    gap: var(--space-sm);
+    margin-top: var(--space-sm);
+    flex-wrap: wrap;
 }
 
 /* ── Tab group (join page) ── */

@@ -917,6 +917,17 @@ def share_rotate(fid):
     return redirect(url_for('family_settings', fid=fid))
 
 
+@app.route('/family/<int:fid>/share/revoke', methods=['POST'])
+@login_required
+@family_access_required(role='admin')
+def share_revoke(fid):
+    db = get_db()
+    db.execute("DELETE FROM family_share_token WHERE family_id = ?", (fid,))
+    db.commit()
+    flash('Share link revoked. Existing guest viewers lost access.', 'success')
+    return redirect(url_for('family_settings', fid=fid))
+
+
 def _token_expired(row):
     """Check if a share token has expired."""
     if not row or not row['created_at']:

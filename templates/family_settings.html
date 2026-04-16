@@ -62,11 +62,18 @@
         <button type="button" class="btn-ghost btn-sm"
                 onclick="navigator.clipboard.writeText(this.previousElementSibling.value); this.textContent='Copied!'">Copy</button>
     </div>
-    <form method="post" action="{{ url_for('share_rotate', fid=fid) }}" style="margin-top:0.75rem">
-        {{ csrf_field }}
-        <button type="submit" class="btn-outline-danger btn-sm"
-                onclick="return confirm('Rotate the link? The old link will stop working.')">Rotate Link</button>
-    </form>
+    <div class="share-link-actions">
+        <form method="post" action="{{ url_for('share_rotate', fid=fid) }}">
+            {{ csrf_field }}
+            <button type="submit" class="btn-outline-danger btn-sm"
+                    onclick="return confirm('Rotate the link? The old link will stop working.')">Rotate Link</button>
+        </form>
+        <form method="post" action="{{ url_for('share_revoke', fid=fid) }}">
+            {{ csrf_field }}
+            <button type="submit" class="btn-outline-danger btn-sm"
+                    onclick="return confirm('Revoke the share link? No new link will be generated. Current guest viewers will lose access.')">Revoke Link</button>
+        </form>
+    </div>
     {% else %}
     <form method="post" action="{{ url_for('share_generate', fid=fid) }}">
         {{ csrf_field }}
